@@ -33,8 +33,8 @@
 - [ ] Task 19: Performance optimization (lazy loading, memoization)
 - [ ] Task 20: Add analytics events (optional)
 
-## Wave 5: Documentation & Deployment (Tasks 21-31) - NOT STARTED
-- [ ] Task 21: Write README.md with setup instructions
+## Wave 5: Documentation & Deployment (Tasks 21-31) - IN PROGRESS
+- [x] Task 21: Write README.md with setup instructions
 - [ ] Task 22: Write CONTRIBUTING.md
 - [ ] Task 23: Add inline code documentation (JSDoc)
 - [ ] Task 24: Create user guide (how to play)
