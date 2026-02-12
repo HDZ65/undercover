@@ -1,10 +1,25 @@
+/**
+ * Role distribution utilities for the Undercover game.
+ * Implements Fisher-Yates shuffle algorithm for unbiased role assignment.
+ * @module utils/roles
+ */
+
 import type { Player, Role } from '../types/game'
 
+/**
+ * Role distribution configuration for a given player count range.
+ */
 interface RoleDistribution {
+  /** Number of Undercover players */
   undercover: number
+  /** Number of Mr. White players */
   mrwhite: number
 }
 
+/**
+ * Distribution table mapping player counts to role allocations.
+ * Ensures balanced gameplay across different group sizes.
+ */
 const roleDistributionTable: Array<{
   minPlayers: number
   maxPlayers: number
@@ -18,6 +33,12 @@ const roleDistributionTable: Array<{
   { minPlayers: 17, maxPlayers: 20, distribution: { undercover: 3, mrwhite: 2 } },
 ]
 
+/**
+ * Fisher-Yates shuffle algorithm for unbiased array randomization.
+ * @template T - Type of array elements
+ * @param items - Array to shuffle
+ * @returns New shuffled array (original array is not modified)
+ */
 const shuffleArray = <T>(items: T[]): T[] => {
   const shuffled = [...items]
 
@@ -31,6 +52,12 @@ const shuffleArray = <T>(items: T[]): T[] => {
   return shuffled
 }
 
+/**
+ * Get role distribution configuration for a given player count.
+ * @param playerCount - Number of players (must be between 3 and 20)
+ * @returns Role distribution with undercover and mrwhite counts
+ * @throws {Error} If player count is outside supported range (3-20)
+ */
 const getRoleDistribution = (playerCount: number): RoleDistribution => {
   const row = roleDistributionTable.find(
     ({ minPlayers, maxPlayers }) => playerCount >= minPlayers && playerCount <= maxPlayers,
@@ -43,6 +70,25 @@ const getRoleDistribution = (playerCount: number): RoleDistribution => {
   return row.distribution
 }
 
+/**
+ * Distribute roles randomly among players using Fisher-Yates shuffle.
+ * Assigns Civil, Undercover, and Mr. White roles based on player count.
+ * 
+ * @param players - Array of players to assign roles to
+ * @returns New array of players with assigned roles and isEliminated set to false
+ * @throws {Error} If player count results in invalid distribution
+ * 
+ * @example
+ * ```ts
+ * const players = [
+ *   { id: '1', name: 'Alice' },
+ *   { id: '2', name: 'Bob' },
+ *   { id: '3', name: 'Charlie' }
+ * ];
+ * const withRoles = distributeRoles(players);
+ * // Result: 2 Civils, 1 Undercover, 0 Mr. White
+ * ```
+ */
 export const distributeRoles = (players: Player[]): Player[] => {
   const distribution = getRoleDistribution(players.length)
   const civilCount = players.length - distribution.undercover - distribution.mrwhite
@@ -66,6 +112,19 @@ export const distributeRoles = (players: Player[]): Player[] => {
   }))
 }
 
+/**
+ * Count alive players by role type.
+ * Only counts players who are not eliminated.
+ * 
+ * @param players - Array of players to count
+ * @returns Object with counts for each role type
+ * 
+ * @example
+ * ```ts
+ * const counts = getRoleCounts(players);
+ * // { civil: 3, undercover: 1, mrwhite: 1 }
+ * ```
+ */
 export const getRoleCounts = (players: Player[]) => {
   return players.reduce(
     (accumulator, player) => {
