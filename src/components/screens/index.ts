@@ -1,1 +1,1 @@
-// Screen components will be exported here
+export { Landing } from './Landing'
