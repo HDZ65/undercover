@@ -1,0 +1,21 @@
+{
+  "name": "Undercover - Jeu de Société",
+  "short_name": "Undercover",
+  "description": "Jeu de déduction sociale pour 3-20 joueurs",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["games", "entertainment"],
+  "screenshots": []
+}
