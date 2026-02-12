@@ -119,3 +119,20 @@
 - Use CSS variables with var() for dynamic theming
 - localStorage key: "undercover-theme"
 - Build passes with no TypeScript errors
+
+## Lobby Screen Implementation (Task 5)
+
+### DiceBear Avatar Generation
+- Use createAvatar(lorelei, { seed: playerName, size: 128 }).toDataUri()
+- Seed with player name for consistent avatars across sessions
+- lorelei style provides colorful, friendly avatars suitable for party games
+
+### Haptic Feedback Pattern
+- Check navigator.vibrate availability before calling
+- Combine with visual pulse animation (scale 1.05) for iOS fallback
+- Different durations for different actions: 30ms (category), 50ms (add/remove), 100ms (start game)
+
+### XState Event Pattern for Player Management
+- Machine uses UPDATE_PLAYERS event with full players array (not individual ADD/REMOVE)
+- Pattern: send({ type: 'UPDATE_PLAYERS', players: [...players, newPlayer] })
+- Immutable updates: filter/spread for add/remove operations
