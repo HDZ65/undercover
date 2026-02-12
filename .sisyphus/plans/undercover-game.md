@@ -35,7 +35,7 @@
 
 ## Wave 5: Documentation & Deployment (Tasks 21-31) - IN PROGRESS
 - [x] Task 21: Write README.md with setup instructions
-- [ ] Task 22: Write CONTRIBUTING.md
+- [x] Task 22: Write CONTRIBUTING.md
 - [ ] Task 23: Add inline code documentation (JSDoc)
 - [x] Task 24: Create user guide (how to play)
 - [ ] Task 25: Add screenshots to README
@@ -53,8 +53,8 @@
 - Wave 4 (Polish & Testing): 1/9 ⏳ IN PROGRESS
 - Wave 5 (Documentation & Deployment): 2/11 ⏳ IN PROGRESS
 
-**Total: 19/31 completed (61.3%)**
-**Remaining: 12 tasks**
+**Total: 21/31 completed (67.7%)**
+**Remaining: 10 tasks**
 
 ## Notes
 - Core game functionality is 100% complete (Waves 1-3)
