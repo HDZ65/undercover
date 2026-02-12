@@ -37,7 +37,7 @@
 - [x] Task 21: Write README.md with setup instructions
 - [ ] Task 22: Write CONTRIBUTING.md
 - [ ] Task 23: Add inline code documentation (JSDoc)
-- [ ] Task 24: Create user guide (how to play)
+- [x] Task 24: Create user guide (how to play)
 - [ ] Task 25: Add screenshots to README
 - [ ] Task 26: Configure deployment (Vercel/Netlify)
 - [ ] Task 27: Set up CI/CD pipeline
