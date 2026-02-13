@@ -578,3 +578,34 @@ Convention and pattern discoveries from implementation.
   - `apps/server/src/poker/pokerRoomManager.ts`
   - `apps/server/src/index.ts`
 - ✅ `npm run build` (root) completed successfully with 0 TypeScript errors.
+
+
+## Wave 4: Poker Security Utilities Module (2026-02-13)
+
+### Security Module Scope
+- Added `apps/server/src/poker/security.ts` as a focused utility module for anti-cheat protections required by the texas-holdem-engine plan.
+- Kept the module integration-friendly: pure functions and small stateful classes that can be wired into `pokerRoomManager.ts` and table lifecycle code.
+
+### Information Hiding Pattern
+- Implemented `sanitizeStateForPlayer(fullState, playerId)` with strict public/private split.
+- Public payload includes only board, pots, betting metadata, and player `hasCards` boolean (never opponent `holeCards`).
+- Private payload includes only the requesting player's own `holeCards`, available actions, and optional `handStrength` computed via `calculateHandStrength`.
+
+### Anti-Collusion Rule
+- Implemented `checkIPCollusion(tableId, playerIP, existingPlayerIPs)` returning `{ allowed: false, reason: 'IP already at table' }` when an identical IP is already seated.
+- Empty/unknown IPs are treated as allowed to avoid false positives from missing network metadata.
+
+### Turn Timer and Timeout Enforcement
+- Added `ActionTimer` with `startTimer`/`cancelTimer` and server-authoritative countdown defaults (30s timeout, 1s tick).
+- Timer emits countdown through injected `emitTimer(playerId, remainingMs)` for `poker:timer` broadcasts.
+- On timeout, auto-action is enforced as `check` when legal, otherwise `fold`, then callback executes.
+- Added per-start token guards so stale timer callbacks cannot fire after cancellation/restart.
+
+### Sequence, Rate, and Chip Abuse Guards
+- Added `ActionSequencer` with per-player expected sequence tracking and reject-on-mismatch validation.
+- Added `PlayerActionRateLimiter` enforcing one action per player per 500ms window.
+- Added `FreeChipGrantLimiter` enforcing max `100000` centimes granted per IP in rolling 24h windows, with per-IP window reset and remaining quota response.
+
+### Verification Notes
+- Root build passes: `npm run build` succeeded for shared/server/client.
+- `lsp_diagnostics` could not run in this environment because `typescript-language-server` is missing from PATH; TypeScript compilation succeeded via workspace builds.

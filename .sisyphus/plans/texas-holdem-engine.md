@@ -1344,7 +1344,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 16. Security Layer — Info Hiding, IP Check, Timers, Sequence Numbers
+- [x] 16. Security Layer — Info Hiding, IP Check, Timers, Sequence Numbers
 
   **What to do**:
   - Create `apps/server/src/poker/security.ts`:
