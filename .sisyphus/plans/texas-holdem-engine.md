@@ -746,7 +746,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 7. SQLite Persistence Layer (sql.js)
+- [x] 7. SQLite Persistence Layer (sql.js)
 
   **What to do**:
   - Install sql.js: `npm install sql.js --workspace=apps/server`
