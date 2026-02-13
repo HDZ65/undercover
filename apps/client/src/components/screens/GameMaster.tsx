@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from 'react'
+import { useContext, useMemo } from 'react'
 import { motion } from 'motion/react'
 import type { Role } from '@undercover/shared'
 import { SocketContext } from '../../App'
@@ -18,7 +18,6 @@ const ROLE_TAG_COLORS: Record<Role, string> = {
 
 export function GameMaster() {
   const socket = useContext(SocketContext)
-  const [timeRemaining, setTimeRemaining] = useState(0)
 
   const noElimination = socket?.publicState?.noElimination ?? false
   const revealedPlayers = socket?.publicState?.revealedPlayers ?? []
@@ -33,33 +32,11 @@ export function GameMaster() {
     )
   }, [socket?.publicState])
 
-  useEffect(() => {
-    if (!socket?.publicState) {
-      return
-    }
-
-    setTimeRemaining(socket.publicState.timerDuration)
-  }, [socket?.publicState?.currentRound, socket?.publicState?.timerDuration])
-
-  useEffect(() => {
-    if (timeRemaining <= 0) {
-      return
-    }
-
-    const timer = setTimeout(() => {
-      setTimeRemaining((previous) => Math.max(0, previous - 1))
-    }, 1000)
-
-    return () => clearTimeout(timer)
-  }, [timeRemaining])
-
   if (!socket || !socket.publicState) {
     return null
   }
 
   const currentSpeaker = alivePlayers[socket.publicState.currentSpeakerIndex] ?? null
-  const minutes = String(Math.floor(timeRemaining / 60)).padStart(2, '0')
-  const seconds = String(timeRemaining % 60).padStart(2, '0')
 
   return (
     <motion.div
@@ -76,19 +53,11 @@ export function GameMaster() {
           </h1>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 p-4 border border-slate-200 dark:border-slate-700">
-            <p className="text-sm text-slate-500 dark:text-slate-400">Orateur actuel</p>
-            <p className="text-2xl font-bold mt-1 text-slate-900 dark:text-slate-100">
-              {currentSpeaker?.name ?? 'Aucun orateur'}
-            </p>
-          </div>
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 p-4 border border-slate-200 dark:border-slate-700 text-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400">Temps restant</p>
-            <p className="text-4xl font-black text-slate-900 dark:text-slate-100 mt-1">
-              {minutes}:{seconds}
-            </p>
-          </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 p-4 border border-slate-200 dark:border-slate-700">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Orateur actuel</p>
+          <p className="text-2xl font-bold mt-1 text-slate-900 dark:text-slate-100">
+            {currentSpeaker?.name ?? 'Aucun orateur'}
+          </p>
         </div>
 
         <div className="space-y-2">

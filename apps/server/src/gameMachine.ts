@@ -655,7 +655,7 @@ export const gameMachine = setup({
       currentSpeakerIndex:
         context.alivePlayers.length === 0
           ? 0
-          : context.currentSpeakerIndex % context.alivePlayers.length,
+          : (context.currentSpeakerIndex + 1) % context.alivePlayers.length,
     })),
 
     resetGame: assign(({ context }) => ({
