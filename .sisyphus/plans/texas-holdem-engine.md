@@ -240,7 +240,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 1. Setup Vitest Test Infrastructure
+- [x] 1. Setup Vitest Test Infrastructure
 
   **What to do**:
   - Install vitest as dev dependency in root and apps/server: `npm install -D vitest`
@@ -315,7 +315,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 2. Define Shared Poker Types & Constants
+- [x] 2. Define Shared Poker Types & Constants
 
   **What to do**:
   - Create `packages/shared/src/poker/types.ts` with all poker type definitions:
@@ -415,7 +415,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 3. Define Shared Poker Socket Events
+- [x] 3. Define Shared Poker Socket Events
 
   **What to do**:
   - Create `packages/shared/src/poker/events.ts` with typed Socket.io events:
