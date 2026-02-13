@@ -1560,7 +1560,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 20. Poker Lobby & Table List UI
+- [x] 20. Poker Lobby & Table List UI
 
   **What to do**:
   - Create `apps/client/src/components/screens/poker/PokerLobby.tsx`:
