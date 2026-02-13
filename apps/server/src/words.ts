@@ -1,4 +1,4 @@
-import type { WordCategory, WordPair } from '../types/game';
+import type { WordCategory, WordPair } from '@undercover/shared';
 
 /**
  * Word database for Undercover game

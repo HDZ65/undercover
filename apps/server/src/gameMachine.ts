@@ -1,7 +1,7 @@
 import { assign, setup } from 'xstate'
-import { wordDatabase } from '../data/words'
-import type { Player, Role, WordCategory, WordPair } from '../types/game'
-import { distributeRoles, getRoleCounts } from '../utils/roles'
+import { wordDatabase } from './words'
+import type { Player, Role, WordCategory, WordPair } from '@undercover/shared'
+import { distributeRoles, getRoleCounts } from './roles'
 
 type VoteResolution = 'pending' | 'tie' | 'secondTie' | 'resolved'
 
@@ -21,14 +21,17 @@ interface UndercoverMachineContext {
   tieCandidates: string[]
   tieRound: number
   voteResolution: VoteResolution
+  readyPlayers: string[]
 }
 
 type UndercoverMachineEvent =
   | { type: 'START_GAME'; players?: Player[] }
-  | { type: 'UPDATE_PLAYERS'; players: Player[] }
+  | { type: 'ADD_PLAYER'; player: Player }
+  | { type: 'REMOVE_PLAYER'; playerId: string }
   | { type: 'SET_CATEGORY'; category: WordCategory }
   | { type: 'SET_TIMER_DURATION'; duration: number }
   | { type: 'START_ROLE_DISTRIBUTION' }
+  | { type: 'PLAYER_READY'; playerId: string }
   | { type: 'START_ROUND' }
   | { type: 'NEXT_SPEAKER' }
   | { type: 'START_VOTING' }
@@ -55,6 +58,7 @@ const initialContext: UndercoverMachineContext = {
   tieCandidates: [],
   tieRound: 0,
   voteResolution: 'pending',
+  readyPlayers: [],
 }
 
 const getCurrentVoteTargets = (context: UndercoverMachineContext): string[] => {
@@ -104,6 +108,9 @@ export const gameMachine = setup({
         Array.isArray(context.players) && context.players.length >= 3 && context.players.length <= 20
       )
     },
+    allPlayersReady: ({ context }) => {
+      return context.alivePlayers.length > 0 && context.alivePlayers.every((playerId) => context.readyPlayers.includes(playerId))
+    },
     allVotesCast: ({ context }) => {
       const voteTargets = getCurrentVoteTargets(context)
 
@@ -149,12 +156,7 @@ export const gameMachine = setup({
   },
   actions: {
     assignPlayers: assign(({ context, event }) => {
-      const nextPlayers =
-        event.type === 'UPDATE_PLAYERS'
-          ? event.players
-          : event.type === 'START_GAME'
-            ? (event.players ?? context.players)
-            : context.players
+      const nextPlayers = event.type === 'START_GAME' ? (event.players ?? context.players) : context.players
 
       const normalizedPlayers = nextPlayers.map((player) => ({
         ...player,
@@ -176,6 +178,63 @@ export const gameMachine = setup({
         tieCandidates: [],
         tieRound: 0,
         voteResolution: 'pending' as VoteResolution,
+        readyPlayers: [],
+      }
+    }),
+
+    addPlayer: assign(({ context, event }) => {
+      if (event.type !== 'ADD_PLAYER') {
+        return {}
+      }
+
+      if (context.players.some((player) => player.id === event.player.id)) {
+        return {}
+      }
+
+      const nextPlayers = [...context.players, { ...event.player, role: undefined, isEliminated: false }]
+
+      return {
+        players: nextPlayers,
+        alivePlayers: nextPlayers.map((player) => player.id),
+      }
+    }),
+
+    removePlayer: assign(({ context, event }) => {
+      if (event.type !== 'REMOVE_PLAYER') {
+        return {}
+      }
+
+      const nextPlayers = context.players.filter((player) => player.id !== event.playerId)
+      const alivePlayers = nextPlayers.filter((player) => !player.isEliminated).map((player) => player.id)
+
+      return {
+        players: nextPlayers,
+        alivePlayers,
+        currentSpeakerIndex:
+          alivePlayers.length === 0
+            ? 0
+            : Math.min(context.currentSpeakerIndex, alivePlayers.length - 1),
+        votes: Object.fromEntries(
+          Object.entries(context.votes).filter(
+            ([voterId, targetId]) => voterId !== event.playerId && targetId !== event.playerId,
+          ),
+        ),
+        readyPlayers: context.readyPlayers.filter((id) => id !== event.playerId),
+        tieCandidates: context.tieCandidates.filter((id) => id !== event.playerId),
+      }
+    }),
+
+    markPlayerReady: assign(({ context, event }) => {
+      if (event.type !== 'PLAYER_READY') {
+        return {}
+      }
+
+      if (!context.alivePlayers.includes(event.playerId) || context.readyPlayers.includes(event.playerId)) {
+        return {}
+      }
+
+      return {
+        readyPlayers: [...context.readyPlayers, event.playerId],
       }
     }),
 
@@ -202,6 +261,7 @@ export const gameMachine = setup({
         tieCandidates: [],
         tieRound: 0,
         voteResolution: 'pending' as VoteResolution,
+        readyPlayers: [],
       }
     }),
 
@@ -345,6 +405,7 @@ export const gameMachine = setup({
         tieCandidates: [],
         tieRound: 0,
         voteResolution: 'pending' as VoteResolution,
+        readyPlayers: [],
       }
     }),
 
@@ -452,6 +513,7 @@ export const gameMachine = setup({
       tieCandidates: [],
       tieRound: 0,
       voteResolution: 'pending' as VoteResolution,
+      readyPlayers: [],
       currentSpeakerIndex:
         context.alivePlayers.length === 0
           ? 0
@@ -469,6 +531,10 @@ export const gameMachine = setup({
   states: {
     menu: {
       on: {
+        ADD_PLAYER: {
+          target: 'lobby',
+          actions: 'addPlayer',
+        },
         START_GAME: {
           target: 'lobby',
           actions: 'assignPlayers',
@@ -478,8 +544,11 @@ export const gameMachine = setup({
 
     lobby: {
       on: {
-        UPDATE_PLAYERS: {
-          actions: 'assignPlayers',
+        ADD_PLAYER: {
+          actions: 'addPlayer',
+        },
+        REMOVE_PLAYER: {
+          actions: 'removePlayer',
         },
         SET_CATEGORY: {
           actions: 'setCategory',
@@ -500,10 +569,14 @@ export const gameMachine = setup({
     },
 
     roleDistribution: {
+      always: {
+        guard: 'allPlayersReady',
+        target: 'gameRound.discussion',
+        actions: 'resetVotes',
+      },
       on: {
-        START_ROUND: {
-          target: 'gameRound.discussion',
-          actions: 'resetVotes',
+        PLAYER_READY: {
+          actions: 'markPlayerReady',
         },
         RESET_GAME: {
           target: 'menu',
