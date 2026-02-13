@@ -551,3 +551,30 @@ Convention and pattern discoveries from implementation.
 
 ### Verification Results
 - ✅ `npm run build` succeeded for shared/server/client with 0 TypeScript compile errors.
+
+
+## Wave 4: PokerRoomManager Socket Wiring (2026-02-13)
+
+### Integration Pattern Applied
+- Added `apps/server/src/poker/pokerRoomManager.ts` following `roomManager.ts` structure: socket presence map, per-table room state, actor subscription, and per-socket private state emission.
+- `PokerRoomManager` owns Socket.io orchestration while delegating lifecycle operations to `TableManager` (`createTable`, `joinTable`, `leaveTable`, `sitOut`, `sitIn`, disconnect/reconnect hooks).
+- Registered poker handlers in `apps/server/src/index.ts` alongside existing Undercover handlers without replacing existing room/game event wiring.
+
+### State Broadcasting and Information Hiding
+- On every actor snapshot update, server emits `poker:state` per connected player with explicit public/private split.
+- Public payload includes phase, board cards, pots, betting metadata, and players with `hasCards` boolean only (no opponent hole cards).
+- Private payload is built per player with only their own `holeCards`, derived `handStrength`, available actions, and bet bounds.
+
+### Action Handling and Sequencing
+- Wired player action events (`poker:fold/check/call/raise/allIn`) to `PLAYER_ACTION` dispatch on the poker XState actor.
+- Added server-side sequence validation before actor send: expected sequence must match `snapshot.context.actionSequenceNumber + 1` or action is rejected.
+- Successful actions emit `poker:action` to the table room for synchronized client action feed.
+
+### Table List Broadcasting
+- Added centralized `broadcastTableList()` that emits `poker:tableList` with table id, player count, and config whenever table/player lifecycle changes.
+
+### Verification Results
+- ✅ `lsp_diagnostics` clean for:
+  - `apps/server/src/poker/pokerRoomManager.ts`
+  - `apps/server/src/index.ts`
+- ✅ `npm run build` (root) completed successfully with 0 TypeScript errors.

@@ -1286,7 +1286,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 15. Poker Room Manager — Socket.io Integration
+- [x] 15. Poker Room Manager — Socket.io Integration
 
   **What to do**:
   - Create `apps/server/src/poker/pokerRoomManager.ts`:
