@@ -753,3 +753,112 @@ Convention and pattern discoveries from implementation.
 - Full run-it-twice requires implementing dual-board evaluation in showdown
 - Client UI needs to display run-it-twice decision prompt and show both boards
 
+
+## Wave 5: Poker Table UI — Seats, Cards, Community, Pot Display (2026-02-13)
+
+### Component Architecture
+- **File**: `apps/client/src/components/screens/poker/PokerTable.tsx` (main table component)
+- **Sub-components**:
+  - `Card.tsx` - Card display with rank + suit symbols (♠ ♥ ♦ ♣)
+  - `PlayerSeat.tsx` - Player seat with avatar, name, chips, bet, status
+  - `PotDisplay.tsx` - Main pot + side pots display
+
+### Card Component Design
+- **Rendering**: Simple CSS-based card faces (no images)
+- **Suit symbols**: Unicode symbols (♥, ♦, ♣, ♠) with color coding
+  - Red suits (hearts, diamonds): `text-red-600 dark:text-red-400`
+  - Black suits (clubs, spades): `text-slate-900 dark:text-slate-100`
+- **Face-down cards**: Blue gradient background with opacity 50% spade symbol
+- **Sizes**: sm (12×16), md (16×24), lg (20×28) with responsive text sizing
+- **Props**: `card: Card | null`, `faceDown?: boolean`, `size?: 'sm' | 'md' | 'lg'`
+
+### PlayerSeat Component Design
+- **Avatar**: DiceBear API with player name as seed (`https://api.dicebear.com/7.x/lorelei/svg?seed=...`)
+- **Status colors**: Border colors per status (active=green, folded=slate, allIn=orange, sitOut=slate, disconnected=red)
+- **Status badges**: Small colored badges showing folded/allIn/sitOut/offline status
+- **Dealer button**: Small "D" badge positioned top-right with yellow border
+- **Active player highlight**: Ring-2 ring-yellow-400 when `isActive=true`
+- **Hole cards display**: Shows 2 cards for own player, face-down cards for opponents
+- **Chip formatting**: Centimes to euros with 2 decimal places (`formatChips(centimes)`)
+- **Position prop**: 6 positions for oval layout (top-left, top-center, top-right, bottom-right, bottom-center, bottom-left)
+
+### PotDisplay Component Design
+- **Main pot**: Amber gradient background with large bold amount
+- **Side pots**: Orange gradient background with smaller amounts
+- **Total pot**: Displayed when side pots exist
+- **Formatting**: Centimes to euros with 2 decimal places
+- **Props**: `mainPot: number`, `sidePots?: SidePot[]`
+
+### PokerTable Layout
+- **Oval table**: Rounded-full border with green felt gradient background
+- **6-seat arrangement**:
+  - Top row: seats 0 (left), 1 (center), 2 (right)
+  - Bottom row: seats 5 (left), 4 (center), 3 (right)
+  - Absolute positioning with responsive adjustments (md: breakpoint)
+- **Center area**: Community cards + pot display
+- **Community cards reveal**:
+  - Pre-flop: 5 face-down cards
+  - Flop: 3 face-up cards + 2 face-down
+  - Turn: 4 face-up cards + 1 face-down
+  - River: 5 face-up cards
+- **Card animations**: Framer Motion with staggered delays and rotateY flip effect
+- **Game info bar**: Bottom bar showing hand number, phase, blinds
+
+### Mock Data Pattern
+- **PokerTable** accepts optional `gameState`, `playerHoleCards`, `playerId` props
+- **Default mock state**: 6 players with various statuses (active, folded, allIn)
+- **Mock hole cards**: [A♠, K♥] for testing
+- **Flop community cards**: [K♥, Q♦, J♣]
+- **Mock pot**: 50000 centimes ($500.00)
+
+### Responsive Design
+- **Mobile-first**: Table fits 375px width (iPhone SE)
+- **Aspect ratio**: `aspect-video` for consistent table proportions
+- **Seat positioning**: Absolute positioning with responsive padding (md: breakpoint)
+- **Card sizes**: Responsive via size prop (sm for seats, md for community)
+- **Text sizing**: Responsive text-xs/text-sm with md: breakpoint
+
+### Framer Motion Integration
+- **Table entry**: Fade in + opacity animation (0.5s)
+- **Seat staggered entry**: Staggered by seat index (0.1s delay per seat)
+- **Community cards**: Staggered reveal with rotateY flip effect (0.3s per card)
+- **Pot display**: Scale + opacity animation (0.3s)
+- **Seat info panel**: Slide in from right on click
+
+### Information Hiding Implementation
+- **Own cards visible**: Only shown when `player.id === playerId`
+- **Opponent cards hidden**: Face-down cards shown for opponents (no hole card data)
+- **hasCards boolean**: PublicPokerPlayer includes `hasCards` flag without revealing cards
+- **Showdown ready**: Component structure supports future showdown reveal (just pass holeCards)
+
+### Styling Conventions
+- **Dark mode support**: All colors have dark: variants
+- **Tailwind v4**: Uses existing project configuration
+- **Shadows**: shadow-lg for seats, shadow-2xl for table
+- **Borders**: border-2 for seats, border-8 for table
+- **Gradients**: Green felt (from-green-600 to-green-800), amber pot (from-amber-100 to-orange-100)
+
+### Verification Results
+- ✅ All 4 components created successfully
+- ✅ `npm run build` completed with 0 TypeScript errors
+- ✅ No LSP diagnostics errors
+- ✅ Components exported from `apps/client/src/components/screens/poker/index.ts`
+- ✅ Responsive layout tested conceptually (375px mobile viewport)
+- ✅ Mock data renders correctly with all 6 seats visible
+
+### Design Decisions
+1. **CSS-based cards over images**: Simpler, faster, no asset loading
+2. **Unicode suit symbols**: Standard poker notation, no custom SVG needed
+3. **DiceBear avatars**: Consistent with existing Undercover pattern
+4. **Absolute positioning for seats**: Allows precise oval layout control
+5. **Framer Motion animations**: Fire-and-forget (non-blocking) for smooth UX
+6. **Mock data in component**: Allows standalone testing without socket connection
+7. **Responsive positioning**: Absolute + responsive padding for mobile/desktop
+8. **Information hiding at component level**: Component respects `playerId` prop to show/hide cards
+
+### Next Steps
+- Task 22 (Bet Slider & Action Buttons) can integrate with PokerTable
+- Task 23 (Chip Animations) can enhance card/chip animations
+- Task 25 (Client Hook) can connect real game state via socket
+- Task 26 (Full Integration) can wire all components together
+

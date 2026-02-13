@@ -1,1 +1,5 @@
 export { PokerLobby } from './PokerLobby'
+export { PokerTable } from './PokerTable'
+export { Card } from './components/Card'
+export { PlayerSeat } from './components/PlayerSeat'
+export { PotDisplay } from './components/PotDisplay'

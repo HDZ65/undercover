@@ -1599,7 +1599,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 21. Poker Table UI — Seats, Cards, Community, Pot Display
+- [x] 21. Poker Table UI — Seats, Cards, Community, Pot Display
 
   **What to do**:
   - Create `apps/client/src/components/screens/poker/PokerTable.tsx`:
