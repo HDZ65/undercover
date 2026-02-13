@@ -174,3 +174,26 @@ Convention and pattern discoveries from implementation.
 - Task 25 (client hook) will implement client-side event listeners
 - All event payloads typed with poker types from Task 2
 
+
+## Wave 2: Card & Deck Module with CSPRNG TDD (2026-02-13)
+
+### TDD Flow
+- **RED first**: Added `apps/server/src/poker/__tests__/deck.test.ts` with 8 tests before implementation; initial run failed because `../deck` did not exist.
+- **GREEN**: Implemented `apps/server/src/poker/deck.ts` to satisfy tests.
+- **Verification**: `npx vitest run src/poker/__tests__/deck.test.ts` passes with 8/8 tests.
+
+### Deck API Conventions
+- `createDeck()` builds 52 cards from shared `SUITS` and `RANKS` constants.
+- `shuffleDeck(deck)` is immutable (copies input) and uses Fisher-Yates with `crypto.getRandomValues(new Uint32Array(1))` source.
+- `dealCards(deck, count)` returns `{ dealt, remaining }` via slices; throws on invalid counts.
+- `burnCard(deck)` returns `{ burned, remaining }` and removes top card without mutating input.
+- `dealHoleCards(deck, playerCount)` deals 2 cards per player in round-robin order: first pass one card each, second pass one card each.
+- `dealCommunityCards(deck, 'flop' | 'turn' | 'river')` always burns 1 then deals 3/1/1 cards by street.
+
+### Security and Purity Checks
+- `Math.random` is absent from deck logic (`apps/server/src/poker/deck.ts`).
+- `crypto.getRandomValues` is present and used for shuffle randomness.
+- Build verification: `npm run build --workspace=apps/server` succeeds.
+
+### Refactor Note
+- Random index selection now uses rejection sampling over uint32 values to avoid modulo bias while keeping CSPRNG source (`crypto.getRandomValues`).
