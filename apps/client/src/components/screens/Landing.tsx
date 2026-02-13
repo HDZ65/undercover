@@ -4,7 +4,11 @@ import { SocketContext } from '../../App'
 
 type LandingMode = 'create' | 'join'
 
-export function Landing() {
+interface LandingProps {
+  onBack?: () => void
+}
+
+export function Landing({ onBack }: LandingProps) {
   const socket = useContext(SocketContext)
   const [mode, setMode] = useState<LandingMode>('create')
   const [playerName, setPlayerName] = useState('')
@@ -117,6 +121,15 @@ export function Landing() {
             <p className="text-rose-600 dark:text-rose-400 mt-2">{socket.error}</p>
           )}
         </div>
+
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="mt-4 w-full min-h-[44px] text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          >
+            ← Retour aux jeux
+          </button>
+        )}
       </div>
     </motion.div>
   )

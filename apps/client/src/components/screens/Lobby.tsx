@@ -20,7 +20,11 @@ const generateAvatar = (name: string): string =>
     size: 128,
   }).toDataUri()
 
-export function Lobby() {
+interface LobbyProps {
+  onBack?: () => void
+}
+
+export function Lobby({ onBack }: LobbyProps) {
   const socket = useContext(SocketContext)
   const [selectedCategory, setSelectedCategory] = useState<WordCategory>('facile')
 
@@ -179,6 +183,15 @@ export function Lobby() {
           <div className="bg-slate-100 dark:bg-slate-900/60 rounded-lg p-4 text-center text-slate-600 dark:text-slate-400 font-medium">
             En attente de l'hote...
           </div>
+        )}
+
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="w-full min-h-[44px] text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          >
+            ← Retour aux jeux
+          </button>
         )}
       </div>
     </motion.div>
