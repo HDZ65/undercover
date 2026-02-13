@@ -18,14 +18,24 @@ const ROLE_LABELS: Record<Role, string> = {
 export function Distribution() {
   const socket = useContext(SocketContext)
 
-  if (!socket || !socket.publicState || !socket.privateState || !socket.privateState.role) {
+  if (!socket || !socket.publicState || !socket.privateState) {
     return null
   }
 
   const role = socket.privateState.role
+  const hideRoles = socket.publicState.hideRoles
   const isReady = socket.publicState.readyPlayers.includes(socket.privateState.playerId)
   const readyCount = socket.publicState.readyPlayers.length
   const totalPlayers = socket.publicState.players.length
+
+  // In hideRoles mode: no role shown, only the word (or "Pas de mot" for Mr. White)
+  // The player doesn't know if they're Civil, Undercover, or Mr. White
+  if (!hideRoles && !role) {
+    return null
+  }
+
+  const word = socket.privateState.word
+  const hasWord = typeof word === 'string' && word.length > 0
 
   return (
     <motion.div
@@ -41,27 +51,45 @@ export function Distribution() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          Votre role secret
+          {hideRoles ? 'Votre mot secret' : 'Votre role secret'}
         </motion.h1>
 
-        <motion.div
-          className={`rounded-2xl bg-gradient-to-br ${ROLE_COLORS[role]} text-white p-8 shadow-2xl`}
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-        >
-          <p className="uppercase tracking-wider text-sm opacity-90">Role</p>
-          <h2 className="text-4xl font-black mt-2">{ROLE_LABELS[role]}</h2>
+        {hideRoles ? (
+          <motion.div
+            className="rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 text-white p-8 shadow-2xl"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="bg-white/20 rounded-xl p-4">
+              <p className="uppercase tracking-wider text-xs opacity-90">Mot</p>
+              {hasWord ? (
+                <p className="text-3xl font-black mt-2">{word}</p>
+              ) : (
+                <p className="text-2xl font-bold mt-2">Pas de mot</p>
+              )}
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            className={`rounded-2xl bg-gradient-to-br ${ROLE_COLORS[role!]} text-white p-8 shadow-2xl`}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+          >
+            <p className="uppercase tracking-wider text-sm opacity-90">Role</p>
+            <h2 className="text-4xl font-black mt-2">{ROLE_LABELS[role!]}</h2>
 
-          <div className="mt-6 bg-white/20 rounded-xl p-4">
-            <p className="uppercase tracking-wider text-xs opacity-90">Mot</p>
-            {role === 'mrwhite' ? (
-              <p className="text-2xl font-bold mt-2">Vous etes Mr. White - Pas de mot</p>
-            ) : (
-              <p className="text-3xl font-black mt-2">{socket.privateState.word}</p>
-            )}
-          </div>
-        </motion.div>
+            <div className="mt-6 bg-white/20 rounded-xl p-4">
+              <p className="uppercase tracking-wider text-xs opacity-90">Mot</p>
+              {role === 'mrwhite' ? (
+                <p className="text-2xl font-bold mt-2">Vous etes Mr. White - Pas de mot</p>
+              ) : (
+                <p className="text-3xl font-black mt-2">{socket.privateState.word}</p>
+              )}
+            </div>
+          </motion.div>
+        )}
 
         <div className="space-y-3">
           <p className="text-slate-600 dark:text-slate-400 font-medium">
