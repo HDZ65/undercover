@@ -1229,7 +1229,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 14. TableManager — Join, Leave, Buy-in, Sit-Out
+- [x] 14. TableManager — Join, Leave, Buy-in, Sit-Out
 
   **What to do**:
   - Create `apps/server/src/poker/tableManager.ts`:

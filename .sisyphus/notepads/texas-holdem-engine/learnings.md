@@ -522,3 +522,32 @@ Convention and pattern discoveries from implementation.
 ### Verification Results
 - ✅ `npm run build` at repository root completed successfully (shared + server + client builds all passed).
 - ⚠️ `lsp_diagnostics` tool unavailable in this environment because `typescript-language-server` is missing from PATH; TypeScript compile (`tsc`) passed for verification.
+
+
+## Wave 4: TableManager Lifecycle Separation (2026-02-13)
+
+### Table Lifecycle Architecture
+- Added `apps/server/src/poker/tableManager.ts` as a dedicated table lifecycle module separate from `pokerMachine.ts` hand logic.
+- `TableManager` now owns table registry, seat map, player sessions, disconnect timers, dealer button state, and chip buy-in/cashout boundaries.
+
+### Buy-In and Rebuy Guardrails
+- Buy-ins are validated against table `minBuyIn`/`maxBuyIn` and require sufficient persisted DB balance (`getOrCreatePlayer` + `updatePlayerBalance(-buyIn)`).
+- Rebuys (`addChips`) are blocked while `handInProgress` is true and are persisted as DB debits before stack increases.
+- Integer safety is enforced with `assertInteger` and chip math helper `addChips`.
+
+### Disconnect/Reconnect Pattern
+- Implemented 90s grace handling using `RECONNECT_GRACE_MS` and per-player timers in `disconnectTimers` map.
+- On disconnect: player status becomes `disconnected`; on grace expiry: auto `sitOut` and socket cleared.
+- On reconnect: timer is canceled and status is restored to `active` (or `sitOut` if stack is empty).
+
+### Dead Button Handling
+- Dealer-seat departures set `deadButtonPending = true`.
+- `advanceDealerButton()` consumes dead-button state first (button stays one hand), then advances clockwise to next occupied seat.
+- This preserves anti-abuse behavior when players leave around blinds/button rotation.
+
+### Bot Seat Filling
+- `fillWithBots(tableId, count, profiles)` fills lowest available seats, assigns deterministic profile cycling, and instantiates `PokerBot` per bot player.
+- Bot seats use generated `bot-<uuid>` ids and start at `config.minBuyIn` stacks without DB persistence side effects.
+
+### Verification Results
+- ✅ `npm run build` succeeded for shared/server/client with 0 TypeScript compile errors.
