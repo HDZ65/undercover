@@ -1149,7 +1149,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 13. Poker XState Machine (Full Game Flow)
+- [x] 13. Poker XState Machine (Full Game Flow)
 
   **What to do**:
   - Create `apps/server/src/poker/pokerMachine.ts` using XState v5 `setup()`:

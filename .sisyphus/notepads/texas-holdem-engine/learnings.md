@@ -494,3 +494,31 @@ Convention and pattern discoveries from implementation.
 ### Verification Results
 - ✅ `lsp_diagnostics` clean for `apps/server/src/poker/bot.ts`
 - ✅ `npm run build --workspace=apps/server` completed with 0 TypeScript errors
+
+
+## Wave 4: Poker XState Machine Full Hand Flow (2026-02-13)
+
+### Machine Structure Pattern
+- Added `apps/server/src/poker/pokerMachine.ts` using XState v5 `setup(...).createMachine(...)` pattern (same style as `gameMachine.ts`).
+- Core flow implemented as explicit poker states: `waitingForPlayers -> preFlop -> flop -> turn -> river -> showdown -> handComplete` with automatic loop back to `preFlop` when 2+ players remain.
+- Phase transitions are guard-driven (`isRoundComplete`, `isOnlyOnePlayerLeft`, `hasEnoughPlayers`) and do not require controller-side orchestration.
+
+### Integration Pattern for Wave 2+3 Modules
+- **Deck** integration: hand setup uses `createDeck`, `shuffleDeck`, `dealHoleCards`; streets use `dealCommunityCards`; showdown runout force-completes board to 5 cards.
+- **BettingEngine** integration: machine stores serialized betting state and replays action history into a fresh `BettingEngine` instance for validation and turn progression (`validateAction`, `executeAction`, `getNextActivePlayer`, `isRoundComplete`).
+- **PotManager** integration: machine stores serialized pot state (`playerBets`, `foldedPlayerIds`, `pots`, `winnersByPot`, `payouts`), then computes side pots and payouts through `calculateSidePots` and `distributePots`.
+- **HandEvaluator** integration: showdown resolution uses `findWinners(playerHands, communityCards)` and maps winner tiers to each eligible side pot.
+- **Bot** integration: timeout handler can call `PokerBot.decideAction(...)` (for bot-named players) with derived public state and available actions.
+
+### Showdown and Dealer Rules
+- Showdown reveal order is derived from last aggressor seat first, then clockwise; fallback is left of dealer when no aggressor exists.
+- Dealer button advances in `handComplete` using clockwise seat progression among sit-in players with chips.
+- `handNumber` increments in `handComplete` cleanup so each looped hand gets a new sequential number.
+
+### State Serialization Notes
+- Context intentionally stores plain data snapshots for betting/pot state (no raw class instances in machine context).
+- Replay-based reconstruction allows deterministic validation/execution while preserving serializable context boundaries.
+
+### Verification Results
+- ✅ `npm run build` at repository root completed successfully (shared + server + client builds all passed).
+- ⚠️ `lsp_diagnostics` tool unavailable in this environment because `typescript-language-server` is missing from PATH; TypeScript compile (`tsc`) passed for verification.
