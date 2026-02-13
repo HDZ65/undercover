@@ -234,3 +234,31 @@ Convention and pattern discoveries from implementation.
 - ✅ LSP diagnostics clean for:
   - `apps/server/src/poker/handEvaluator.ts`
   - `apps/server/src/poker/__tests__/handEvaluator.test.ts`
+
+
+## Wave 2: Integer Chip Arithmetic Module with TDD (2026-02-13)
+
+### TDD Flow
+- **RED first**: Added `apps/server/src/poker/__tests__/chips.test.ts` before implementation; initial run failed because `../chips` did not exist.
+- **GREEN**: Implemented `apps/server/src/poker/chips.ts` with integer-only chip helpers.
+- **Verification**: `npx vitest run src/poker/__tests__/chips.test.ts` passes with 18/18 tests.
+
+### Integer Arithmetic Conventions
+- Monetary values stay in centimes as integers (`CENTIMES_PER_EURO = 100`).
+- Shared guard `assertInteger(value)` uses `Number.isInteger()` to reject non-integers.
+- Negative chip amounts are rejected at boundaries (`assertChipAmount` + subtraction underflow check).
+- Division logic uses integer quotient + modulo remainder for odd-chip handling:
+  - `perPlayer = (total - remainder) / players`
+  - `remainder = total % players`
+
+### Formatting and Parsing Pattern
+- `formatChips(centimes)` is display-only and returns euro strings like `10.50€`, `1.00€`, `0.05€`.
+- Formatting avoids float formatting helpers for arithmetic concerns and pads cents with `padStart(2, '0')`.
+- `parseChips(display)` parses with regex/string operations (supports `.` or `,`) and converts directly to centimes without float math.
+
+### Verification Results
+- ✅ `npx vitest run src/poker/__tests__/chips.test.ts` -> 18 passed, 0 failed
+- ✅ `npm run build --workspace=apps/server` -> TypeScript compile success
+- ✅ LSP diagnostics clean for:
+  - `apps/server/src/poker/chips.ts`
+  - `apps/server/src/poker/__tests__/chips.test.ts`
