@@ -830,7 +830,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 8. PotManager — Side Pots, Odd Chip, Split Pot [TDD]
+- [x] 8. PotManager — Side Pots, Odd Chip, Split Pot [TDD]
 
   **What to do**:
   - **RED**: Write tests in `apps/server/src/poker/__tests__/potManager.test.ts`:
@@ -916,7 +916,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 9. BettingEngine — Min-Raise, Full Bet Rule, Heads-Up [TDD]
+- [x] 9. BettingEngine — Min-Raise, Full Bet Rule, Heads-Up [TDD]
 
   **What to do**:
   - **RED**: Write tests in `apps/server/src/poker/__tests__/bettingEngine.test.ts`:
@@ -1000,7 +1000,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 10. Real-Time Hand Strength Calculator
+- [x] 10. Real-Time Hand Strength Calculator
 
   **What to do**:
   - Create `apps/server/src/poker/handStrength.ts`:
@@ -1040,7 +1040,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 11. Hand History Recorder & Text Export
+- [x] 11. Hand History Recorder & Text Export
 
   **What to do**:
   - Create `apps/server/src/poker/handHistory.ts`:
@@ -1093,7 +1093,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 12. AI Bot Engine — Pot Odds & 3 Profiles
+- [x] 12. AI Bot Engine — Pot Odds & 3 Profiles
 
   **What to do**:
   - Create `apps/server/src/poker/bot.ts`:

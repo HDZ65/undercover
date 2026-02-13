@@ -290,3 +290,207 @@ Convention and pattern discoveries from implementation.
 - ✅ `npm run build --workspace=apps/server` completed with 0 TypeScript errors.
 - ✅ Runtime smoke test via `node --import tsx --eval ...` created player, updated balance by integer delta, saved hand history, and returned integer balance.
 - ✅ `apps/server/data/poker.db` created on disk.
+
+
+## Wave 3: BettingEngine Min-Raise, Full-Bet Rule, Heads-Up (2026-02-13)
+
+### TDD Flow
+- **RED first**: Added `apps/server/src/poker/__tests__/bettingEngine.test.ts` with 13 scenarios before implementation; initial run failed because `../bettingEngine` did not exist.
+- **GREEN**: Implemented `apps/server/src/poker/bettingEngine.ts` with blind posting, turn order, action validation, min-raise logic, and full-bet reopening behavior.
+- **Verification**: `npx vitest run src/poker/__tests__/bettingEngine.test.ts` passes with 13/13 tests.
+
+### Betting Rules Implementation Notes
+- **Min raise baseline**: `minRaise = currentBet + lastRaiseIncrement`; initialized with `bigBlind` so pre-flop opens at BB + BB.
+- **Increment carry-forward**: After raise to 300 over 100, increment is 200, next min raise is 500.
+- **Full-bet rule**: Short all-in raises (< last full raise increment) do not reopen raise rights for players who already acted.
+- **BB option preserved**: In limped pots, BB remains in pending action set and receives `check`/`raise` options.
+- **Heads-up exception**: Dealer is SB, acts first pre-flop; post-flop first actor is seat after dealer (dealer acts last).
+- **All-in exemption**: `allIn` action remains valid regardless of minimum raise constraints.
+
+### State Tracking Pattern
+- Internal maps/sets track `betsPerPlayer`, `currentBet`, `lastRaise`, `lastAggressor`, `actedPlayers`, and `pendingPlayers`.
+- Round completion is derived from pending actionable players (with folded/all-in players removed), plus single-player-in-hand fast exit.
+- Call amount is always computed as `currentBet - playerCurrentBet` using integer chip helpers.
+
+### Verification Results
+- ✅ `npx vitest run src/poker/__tests__/bettingEngine.test.ts` -> 13 passed, 0 failed
+- ✅ LSP diagnostics clean for:
+  - `apps/server/src/poker/bettingEngine.ts`
+  - `apps/server/src/poker/__tests__/bettingEngine.test.ts`
+
+
+## Wave 3: PotManager Side Pots + Odd Chip Distribution (2026-02-13)
+
+### TDD Flow
+- **RED first**: Added `apps/server/src/poker/__tests__/potManager.test.ts` with 9 scenario tests before implementation; initial run failed because `../potManager` did not exist.
+- **GREEN**: Implemented `apps/server/src/poker/potManager.ts` with threshold-based side pot calculation and pot-by-pot distribution.
+- **Verification**: `npx vitest run src/poker/__tests__/potManager.test.ts` passes with 9/9 tests.
+
+### Pot Construction Rules
+- Side pots are built by sorted contribution thresholds (ascending unique bet levels).
+- Per-threshold pot amount uses integer-only accumulation (`addChips`) and threshold deltas (`subtractChips`).
+- Folded players are excluded from `eligiblePlayerIds` in every pot but their committed chips still contribute to pot amounts.
+- This prevents ghost side-pot leakage while preserving dead money in the correct pot segment.
+
+### Distribution Rules
+- Pot payout is resolved independently per pot index.
+- Winners are filtered against each pot's `eligiblePlayerIds`, which enforces all-in caps naturally (short stack cannot win beyond covered levels).
+- Split logic uses `divideChips(total, winnerCount)` for integer floor + remainder.
+- Odd chip remainder is assigned clockwise from dealer (`dealerSeatIndex`) to the closest eligible winner(s).
+
+### Verification Results
+- ✅ `npx vitest run src/poker/__tests__/potManager.test.ts` -> 9 passed, 0 failed
+- ✅ LSP diagnostics clean for:
+  - `apps/server/src/poker/potManager.ts`
+  - `apps/server/src/poker/__tests__/potManager.test.ts`
+
+
+## Wave 3: Real-Time Hand Strength Calculator (2026-02-13)
+
+### Module Architecture
+- **File**: `apps/server/src/poker/handStrength.ts` (350+ lines)
+- **Pattern**: Reuses `evaluateHand` and `describeHand` from handEvaluator.ts (no duplication)
+- **Exports**:
+  - `classifyPreFlopHand(holeCards): PreFlopTier` - Classify starting hands into 5 tiers
+  - `describePreFlopHand(holeCards): string` - French description of pre-flop tier
+  - `calculateDraws(holeCards, communityCards): string[]` - Detect flush/straight/gutshot draws
+  - `calculateHandStrength(holeCards, communityCards): HandStrengthResult` - Current best hand
+
+### Pre-Flop Classification Tiers
+- **Premium (top 2%)**: AA, KK, QQ, AKs
+- **Forte (top 5%)**: JJ, TT, AQs, AKo, AJs, KQs
+- **Jouable (top 15%)**: 99-77, ATs, AQo, KJs, QJs, JTs, suited connectors
+- **Spéculative (top 30%)**: Small pairs (66-22), suited aces (A9s-A2s), suited gappers
+- **Faible (bottom 70%)**: Everything else
+
+### Draw Detection Logic
+- **Flush draw**: Count suits in all cards; if 4 of same suit → "Tirage couleur"
+- **Straight draw (open-ended)**: 4 consecutive ranks with 2 possible completions → "Tirage quinte"
+- **Gutshot**: 4 cards with exactly 1 gap, 1 possible completion → "Tirage quinte par le ventre"
+- **Special cases**: A-2-3-4 (wheel draw), A-K-Q-J (broadway draw) detected explicitly
+
+### Hand Strength Calculation
+- **Pre-flop (0 community cards)**: Returns `Main {tier}` with rank 0 (no HandRank yet)
+- **Post-flop (3-5 community cards)**: Calls `evaluateHand(holeCards + communityCards)` and returns French description + HandRank
+- **Validation**: Throws on invalid card counts (not 2 hole cards, not 0/3/4/5 community cards)
+
+### French Localization
+- All descriptions in French:
+  - Pre-flop: "Main Premium", "Main Forte", "Main Jouable", "Main Spéculative", "Main Faible"
+  - Draws: "Tirage couleur", "Tirage quinte", "Tirage quinte par le ventre"
+  - Post-flop: Reuses handEvaluator French descriptions ("Brelan de Rois", "Paire d'As", etc.)
+
+### Design Decisions
+1. **Reuse handEvaluator.ts**: No duplication of hand evaluation logic; wrapper pattern maintained
+2. **Separate pre-flop/post-flop logic**: Pre-flop uses tier classification, post-flop uses evaluateHand
+3. **Draw detection returns array**: Allows multiple draws (e.g., flush draw + straight draw)
+4. **Rank strength map**: Duplicated from handEvaluator.ts for draw detection (could be extracted to shared constant)
+5. **Validation at boundaries**: Throws on invalid inputs (not 2 hole cards, invalid community card counts)
+
+### Verification Results
+- ✅ `npm run build --workspace=apps/server` → exit code 0, TypeScript compile success
+- ✅ No TypeScript errors in handStrength.ts
+- ✅ All functions exported with correct signatures
+- ✅ French descriptions match handEvaluator.ts conventions
+
+### Next Steps
+- Task 11 (AI bot logic) can now use `calculateHandStrength` and `calculateDraws` for decision-making
+- Task 15 (socket integration) can send hand strength to clients via `PokerPrivateState.handStrength`
+- Task 25 (client hook) can display hand strength and draws in UI
+
+
+## Wave 3: Hand History Recorder & Text Export (2026-02-13)
+
+### HandHistoryRecorder Class Architecture
+- **File**: `apps/server/src/poker/handHistory.ts` (250+ lines)
+- **Pattern**: Stateful recorder class that accumulates hand events and exports to standard poker text format
+- **Key methods**:
+  - `startHand(handNumber, tableConfig, players, dealerSeatIndex)` - Initialize new hand recording
+  - `recordAction(playerId, action, phase, amount?)` - Record player action with phase context
+  - `recordCommunityCards(phase, cards)` - Record flop/turn/river cards
+  - `recordShowdown(hands)` - Record revealed hands at showdown (Map<playerId, Card[]>)
+  - `recordWinners(winners)` - Record pot winners with amounts and hand descriptions
+  - `finishHand()` - Return complete HandHistoryEntry for persistence
+  - `exportAsText(entry, viewerPlayerId?)` - Export to standard poker text format
+
+### Information Hiding in Text Export
+- **Hole cards only shown for viewer**: `exportAsText(entry, viewerPlayerId)` only shows viewer's hole cards in "*** HOLE CARDS ***" section
+- **Showdown reveals all**: Opponent cards only appear in "*** SHOWDOWN ***" section if showdown occurred
+- **Summary section**: Shows all revealed hands with win/loss status
+- **Pattern**: Matches real poker hand history format (PokerStars, 888poker, etc.)
+
+### Standard Poker Text Format
+- **Header**: Hand number, game type, blinds, timestamp, table info, button position
+- **Players**: Seat number, name, starting stack (in euros with 2 decimal places)
+- **Blinds**: Small blind and big blind posts
+- **Hole cards**: Only viewer's cards shown (e.g., "Dealt to Player1 [Ah Kd]")
+- **Actions by phase**: Grouped by preFlop/flop/turn/river with phase headers
+- **Community cards**: Shown in phase headers (e.g., "*** FLOP *** [Qs Jd Th]")
+- **Showdown**: All revealed hands with descriptions
+- **Winners**: Pot collection announcements
+- **Summary**: Total pot, rake, board, and final results per seat
+
+### Card Formatting Convention
+- **Format**: `{rank}{suit_initial}` (e.g., "Ah" for Ace of hearts, "Kd" for King of diamonds)
+- **Suit initials**: h (hearts), d (diamonds), c (clubs), s (spades)
+- **Implementation**: `formatCards(cards)` uses `c.suit[0]` to extract first letter
+
+### Action Formatting Convention
+- **fold**: "Player: folds"
+- **check**: "Player: checks"
+- **call**: "Player: calls {amount}" (amount in euros)
+- **raise**: "Player: raises {amount}" (total bet, not raise increment)
+- **allIn**: "Player: bets {amount} and is all-in"
+- **Amounts**: Converted from centimes to euros with 2 decimal places (`amount / 100`)
+
+### Integration with db.ts
+- **Persistence**: `finishHand()` returns HandHistoryEntry compatible with `saveHandHistory(entry)` from db.ts
+- **No duplication**: HandHistoryRecorder builds entry, db.ts handles persistence
+- **Separation of concerns**: Recorder = event accumulation, db = storage
+
+### Verification Results
+- ✅ `npm run build --workspace=apps/server` completed with 0 TypeScript errors
+- ✅ HandHistoryRecorder class compiles successfully
+- ✅ All methods match API specification from plan
+- ✅ exportAsText produces standard poker hand history format
+
+
+## Wave 3: AI Bot Engine - Pot Odds + 3 Profiles (2026-02-13)
+
+### PokerBot Architecture
+- **File**: `apps/server/src/poker/bot.ts`
+- Added `PokerBot` class with profile-based behavior: `rock`, `maniac`, `callingStation`.
+- Core API:
+  - `decideAction(publicState, holeCards, availableActions, callAmount, potSize)`
+  - `calculatePotOdds(callAmount, potSize)` using `call / (call + pot)`
+  - `decideActionWithThinkTime(...)` for human-like delayed actions
+  - `getThinkTimeMs()` returns random 1000-5000 ms
+
+### Equity and Decision Pattern
+- **Pre-flop equity**: combo-key table (`AA`, `AKs`, `72o`, etc.) plus heuristic fallback for uncovered hands.
+- **Post-flop equity**: uses `evaluateHand([...holeCards, ...communityCards])` from `handEvaluator.ts` and maps `HandRank` to baseline equity.
+- Draw and board context adjustments are layered on top (flush draw, straight draw, overcards, phase multiplier).
+- Pot-odds decision baseline remains: continue when effective equity >= required equity.
+
+### Profile Behavior Encoding
+- **Rock**:
+  - Pre-flop plays top-15% style set (AA-TT, AK/AQ suited+offsuit, etc.)
+  - Post-flop continues with top pair or better
+  - Bluff frequency 5%, raise frequency 30%
+- **Maniac**:
+  - Loose pre-flop threshold (~70%+ play rate target)
+  - High aggression: raise 60%, bluff 30%
+  - Continues post-flop with pair/draw/overcards or pressure lines
+- **Calling Station**:
+  - Pre-flop plays any pair/ace/suited-heavy/connected profile
+  - Post-flop calls with pair/draw; raises only with nuts-like strength
+  - Bluff frequency fixed to 0%
+
+### Randomness and Humanization
+- All randomness is CSPRNG-backed via `crypto.getRandomValues(new Uint32Array(1))`.
+- No `Math.random` in bot logic.
+- Think-time delay implemented with `setTimeout` and random 1-5 second window.
+
+### Verification Results
+- ✅ `lsp_diagnostics` clean for `apps/server/src/poker/bot.ts`
+- ✅ `npm run build --workspace=apps/server` completed with 0 TypeScript errors
