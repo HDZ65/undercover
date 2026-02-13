@@ -279,3 +279,62 @@ Total time to production: 3-4 hours of manual work.
 
 **Status**: ✅ ALL TASKS COMPLETE OR BLOCKED
 **Next**: Human handoff for deployment and QA
+
+## Task 19: Game Selector - Landing Page Update (NEW)
+
+### Implementation Summary
+Successfully implemented game selector for landing page with simple approach:
+
+1. **Landing.tsx Updates**
+   - Added `selectedGame?: string` prop to component interface
+   - Wrapped Undercover game UI in conditional: `{selectedGame === 'undercover' && (...)}`
+   - Landing now only displays game content when selectedGame is 'undercover'
+   - Maintains all existing functionality for Undercover game
+
+2. **Poker Directory Structure**
+   - Created `/apps/client/src/components/screens/poker/` directory
+   - Created `PokerLobby.tsx` placeholder component with:
+     - Red/orange gradient title (differentiates from Undercover's blue/purple)
+     - "Lobby - Coming Soon" message
+     - Back button to return to game menu
+   - Created `index.ts` for clean module exports
+
+3. **App.tsx Integration**
+   - Imported PokerLobby from poker directory
+   - Added poker game handling in renderScreen():
+     - Routes `selectedGame === 'poker'` to PokerLobby component
+   - Passes `selectedGame` prop to Landing component for conditional rendering
+   - Maintains existing Undercover flow unchanged
+
+4. **GameMenu.tsx Enhancement**
+   - Changed poker game availability from `available: false` to `available: true`
+   - Poker button now clickable in game menu
+   - No other changes to game menu structure
+
+### Design Decisions
+- **Conditional Rendering**: Landing component checks selectedGame prop to show/hide Undercover UI
+  - Allows Landing to be reused for multiple games in future
+  - Clean separation of game-specific UI
+- **Placeholder Approach**: PokerLobby is minimal with just title and back button
+  - Follows "simple approach" requirement
+  - Easy to extend with actual poker functionality later
+- **Consistent Styling**: PokerLobby uses same card layout as Landing
+  - Red/orange gradient differentiates poker from undercover
+  - Maintains design consistency across app
+- **Clean Exports**: Poker components exported via index.ts
+  - Allows `import { PokerLobby } from './components/screens/poker'`
+  - Follows existing project patterns
+
+### Build Verification
+✅ Build passes with 0 errors
+✅ All TypeScript compiles successfully
+✅ No breaking changes to existing Undercover flow
+✅ Poker button now available in game menu
+
+### Files Modified/Created
+- Modified: `apps/client/src/components/screens/Landing.tsx`
+- Created: `apps/client/src/components/screens/poker/PokerLobby.tsx`
+- Created: `apps/client/src/components/screens/poker/index.ts`
+- Modified: `apps/client/src/App.tsx`
+- Modified: `apps/client/src/components/screens/GameMenu.tsx`
+

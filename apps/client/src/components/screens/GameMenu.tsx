@@ -32,7 +32,7 @@ const GAMES: GameOption[] = [
     description: 'Poker en ligne entre amis. Bluffez et misez pour remporter la mise.',
     gradient: 'from-emerald-600 to-teal-600',
     players: '2-8 joueurs',
-    available: false,
+    available: true,
   },
 ]
 

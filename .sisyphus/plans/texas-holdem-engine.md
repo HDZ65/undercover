@@ -1520,7 +1520,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 19. Game Selector — Landing Page Update
+- [x] 19. Game Selector — Landing Page Update
 
   **What to do**:
   - Update `apps/client/src/App.tsx` to route between Undercover and Poker

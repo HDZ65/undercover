@@ -12,6 +12,7 @@ import { Vote } from './components/screens/Vote'
 import { Elimination } from './components/screens/Elimination'
 import { MrWhiteGuess } from './components/screens/MrWhiteGuess'
 import { Victory } from './components/screens/Victory'
+import { PokerLobby } from './components/screens/poker'
 
 export const SocketContext = createContext<UseSocketReturn | null>(null)
 
@@ -34,7 +35,7 @@ function App() {
 
     if (selectedGame === 'undercover') {
       if (!socket.roomCode || !socket.publicState) {
-        return <Landing onBack={handleBackToMenu} />
+        return <Landing selectedGame="undercover" onBack={handleBackToMenu} />
       }
 
       switch (socket.phase) {
@@ -55,8 +56,12 @@ function App() {
         case 'victory':
           return <Victory />
         default:
-          return <Landing onBack={handleBackToMenu} />
+          return <Landing selectedGame="undercover" onBack={handleBackToMenu} />
       }
+    }
+
+    if (selectedGame === 'poker') {
+      return <PokerLobby onBack={handleBackToMenu} />
     }
 
     return <GameMenu onSelectGame={setSelectedGame} />
