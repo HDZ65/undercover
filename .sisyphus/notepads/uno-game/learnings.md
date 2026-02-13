@@ -1,0 +1,153 @@
+# UNO Game - Learnings & Patterns
+
+## Task 1: Create `packages/uno-shared/` - COMPLETED ✓
+
+### Key Patterns Established
+
+#### 1. Package Structure
+- **Name**: `@uno/shared` (follows `@undercover/shared` pattern)
+- **Type**: `module` (ES modules)
+- **Build**: TypeScript compilation with `tsc`
+- **Exports**: Conditional imports with `.js` extensions for ES module resolution
+
+#### 2. TypeScript Configuration
+- **Target**: ES2022
+- **Module**: ESNext
+- **ModuleResolution**: bundler
+- **Declaration**: true (generates .d.ts files)
+- **Strict**: true (strict type checking enabled)
+- Matches exactly with `packages/shared/tsconfig.json`
+
+#### 3. Barrel Export Pattern
+- **Critical**: ES module imports require `.js` extensions
+- `export * from './types.js'` (NOT `'./types'`)
+- This ensures proper module resolution in Node.js ES module environment
+
+#### 4. Type Organization
+- **types.ts**: Pure type definitions (no imports, no logic)
+  - Card types: CardColor, CardValue, WildCardValue, Card
+  - Game types: UnoGamePhase, PlayDirection
+  - Player types: Player, PublicPlayer, HouseRules, PlayerScore
+  
+- **events.ts**: Socket.io event interfaces
+  - Imports types from types.ts
+  - ClientToServerEvents: 15 events (room, game actions)
+  - ServerToClientEvents: 7 events (state, round, game over)
+  - PublicGameState: No secrets (handSize only, not hand contents)
+  - PrivatePlayerState: Secrets (actual hand cards, canPlayCards, etc.)
+  
+- **constants.ts**: Game constants
+  - CARD_POINTS: Record mapping card values to points
+  - 8 numeric constants (timers, sizes, grace periods)
+
+#### 5. Anti-Cheat Pattern (Dual-State)
+- **PublicGameState**: Broadcast to all players
+  - `players: PublicPlayer[]` with `handSize` (not `hand`)
+  - `discardTop: Card | null` (visible to all)
+  - `drawPileSize: number` (not actual cards)
+  
+- **PrivatePlayerState**: Sent only to specific player
+  - `hand: Card[]` (actual cards, secret)
+  - `canPlayCards: Card[]` (computed valid moves)
+  - `canDraw`, `canCallUno`, `canCatchUno`, `mustChooseColor` (action flags)
+
+### Build Verification
+- ✓ `npx tsc --noEmit` passes (zero type errors)
+- ✓ `npm run build --workspace=packages/uno-shared` succeeds
+- ✓ `dist/index.js` and `dist/index.d.ts` generated
+- ✓ All 14 types exported via .d.ts files
+- ✓ All 9 constants exported at runtime
+
+### Files Created
+1. `packages/uno-shared/package.json` - Package metadata
+2. `packages/uno-shared/tsconfig.json` - TypeScript config
+3. `packages/uno-shared/src/types.ts` - Type definitions (9 exports)
+4. `packages/uno-shared/src/events.ts` - Socket.io events (4 interfaces)
+5. `packages/uno-shared/src/constants.ts` - Game constants (9 exports)
+6. `packages/uno-shared/src/index.ts` - Barrel export
+
+### Commit
+- Message: `feat(uno-shared): create shared types, events, and constants package`
+- Files: 6 new files, 180 insertions
+- Hash: c9d1948
+
+## Task 3: Create `apps/uno-client/` - React + Vite Client - COMPLETED ✓
+
+### Key Patterns Matched
+1. **Package naming**: `@uno/client` (mirrors `@undercover/client`)
+2. **React 19 + Vite 7 + Tailwind 4 stack** (exact versions from existing client)
+3. **Port assignment**: 5174 (Undercover uses 5173, no conflicts)
+4. **TypeScript**: Composite config pattern (tsconfig.json + tsconfig.app.json + tsconfig.node.json)
+5. **Tailwind CSS**: CSS-first approach with `@import "tailwindcss"` + `@theme {}` block
+
+### Tailwind Theme Colors
+```css
+@theme {
+  --color-uno-red: #ef4444;
+  --color-uno-blue: #3b82f6;
+  --color-uno-green: #22c55e;
+  --color-uno-yellow: #eab308;
+}
+```
+
+### Directory Structure Created
+```
+apps/uno-client/
+├── src/
+│   ├── components/
+│   │   ├── screens/     (game screens - ready for implementation)
+│   │   ├── cards/       (card components)
+│   │   └── ui/          (reusable UI components)
+│   ├── hooks/           (custom React hooks)
+│   ├── context/         (React context providers)
+│   ├── App.tsx          (root component with placeholder)
+│   ├── main.tsx         (React 19 root render)
+│   └── index.css        (Tailwind + theme variables)
+├── index.html           (entry point with meta tags)
+├── vite.config.ts       (Vite config, port 5174)
+├── tsconfig.json        (composite config)
+├── tsconfig.app.json    (app TypeScript config)
+├── tsconfig.node.json   (Vite config TypeScript)
+├── package.json         (@uno/client)
+└── eslint.config.js     (flat ESLint config)
+```
+
+### Dependencies Installed
+- React 19.2.0, React-DOM 19.2.0
+- Vite 7.3.1, @vitejs/plugin-react 5.1.1
+- Tailwind CSS 4.1.18, @tailwindcss/vite 4.1.18
+- Socket.io-client 4.8.3 (multiplayer)
+- Framer Motion 12.34.0 (animations)
+- Motion 12.34.0 (motion library)
+- XState 5.27.0, @xstate/react 6.0.0 (state management)
+- Canvas-confetti 1.9.4 (celebrations)
+- TypeScript 5.9.3, ESLint 9.39.1
+
+### Verification Results
+- ✅ Build succeeds: `npm run build --workspace=apps/uno-client`
+- ✅ dist/index.html created (0.88 kB)
+- ✅ dist/assets/index-*.css created (7.10 kB)
+- ✅ dist/assets/index-*.js created (193.38 kB)
+- ✅ Dev server runs on port 5174 (verified with curl)
+- ✅ No TypeScript diagnostics errors
+- ✅ Workspace integration ready (npm scripts in root package.json)
+
+### Files Created
+1. `apps/uno-client/package.json` - Package metadata with @uno/client
+2. `apps/uno-client/tsconfig.json` - Composite TypeScript config
+3. `apps/uno-client/tsconfig.app.json` - App TypeScript config
+4. `apps/uno-client/tsconfig.node.json` - Vite config TypeScript
+5. `apps/uno-client/vite.config.ts` - Vite config with React + Tailwind plugins
+6. `apps/uno-client/index.html` - HTML entry point
+7. `apps/uno-client/src/main.tsx` - React root render
+8. `apps/uno-client/src/App.tsx` - Root component with placeholder
+9. `apps/uno-client/src/index.css` - Tailwind + UNO theme colors
+10. `apps/uno-client/eslint.config.js` - ESLint flat config
+11. Directories: src/components/screens, src/components/cards, src/components/ui, src/hooks, src/context
+
+## Next Tasks (Wave 1)
+- Task 2: Create `apps/uno-server/` - Game logic & Socket.io handlers
+- Task 4: Create root `apps/uno/` - Monorepo app entry point
+
+## Blockers Resolved
+- None - Task 3 had no dependencies (Task 1 @uno/shared declared but not required for scaffold)

@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --color-uno-red: #ef4444;
+  --color-uno-blue: #3b82f6;
+  --color-uno-green: #22c55e;
+  --color-uno-yellow: #eab308;
+}
+
+/* Light theme (default) */
+:root {
+  --bg-primary: #fafafa;
+  --bg-secondary: #ffffff;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+  --card-bg: #ffffff;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --border-color: #e5e5e5;
+}
+
+/* Dark theme */
+:root.dark {
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #1a1a2e;
+  --text-primary: #e5e5e5;
+  --text-secondary: #a0a0a0;
+  --card-bg: rgba(26, 26, 46, 0.8);
+  --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  --border-color: #2a2a3e;
+}
+
+/* Smooth theme transition */
+html {
+  transition: background-color 300ms, color 300ms;
+}
+
+body {
+  @apply transition-colors duration-300;
+}

@@ -815,7 +815,7 @@ export const gameMachine = setup({
           on: {
             CONTINUE_GAME: {
               target: '#undercoverGame.roleDistribution',
-              actions: 'prepareNextRound',
+              actions: ['prepareNextRound', 'assignWordPair'],
             },
           },
         },
@@ -890,7 +890,7 @@ export const gameMachine = setup({
         },
         {
           target: 'roleDistribution',
-          actions: 'prepareNextRound',
+          actions: ['prepareNextRound', 'assignWordPair'],
         },
       ],
       on: {
