@@ -26,6 +26,7 @@ interface UndercoverMachineContext {
   hideRoles: boolean
   scores: Record<string, number>
   usedWordPairIndices: Record<string, number[]>
+  usedCivilWords: string[]
   noElimination: boolean
   revealedPlayers: string[]
 }
@@ -72,6 +73,7 @@ const initialContext: UndercoverMachineContext = {
   hideRoles: false,
   scores: {},
   usedWordPairIndices: {},
+  usedCivilWords: [],
   noElimination: false,
   revealedPlayers: [],
 }
@@ -288,46 +290,65 @@ export const gameMachine = setup({
 
     assignWordPair: assign(({ context }) => {
       const realCategories = Object.keys(wordDatabase) as RealWordCategory[]
-      const resolvedCategory: RealWordCategory = context.category === 'aleatoire'
-        ? realCategories[cryptoRandom(realCategories.length)]
-        : context.category as RealWordCategory
+      const categoriesToTry: RealWordCategory[] = context.category === 'aleatoire'
+        ? [...realCategories].sort(() => cryptoRandom(3) - 1)
+        : [context.category as RealWordCategory]
 
-      const words = wordDatabase[resolvedCategory]
+      for (const resolvedCategory of categoriesToTry) {
+        const words = wordDatabase[resolvedCategory]
 
-      if (!words || words.length === 0) {
+        if (!words || words.length === 0) {
+          continue
+        }
+
+        const usedIndices = context.usedWordPairIndices[resolvedCategory] ?? []
+
+        // Find available indices: not used in this category AND civil word not already played this game
+        let availableIndices = words
+          .map((_, index) => index)
+          .filter((index) => !usedIndices.includes(index))
+          .filter((index) => !context.usedCivilWords.includes(words[index].civil))
+
+        // If all filtered out, relax the category-index constraint but keep the civil-word constraint
+        if (availableIndices.length === 0) {
+          availableIndices = words
+            .map((_, index) => index)
+            .filter((index) => !context.usedCivilWords.includes(words[index].civil))
+        }
+
+        // If still nothing in this category (all civil words already played), try next category
+        if (availableIndices.length === 0) {
+          continue
+        }
+
+        // Fisher-Yates shuffle for uniform distribution
+        for (let i = availableIndices.length - 1; i > 0; i--) {
+          const j = cryptoRandom(i + 1)
+          ;[availableIndices[i], availableIndices[j]] = [availableIndices[j], availableIndices[i]]
+        }
+
+        const randomIndex = availableIndices[0]
+        const pickedWord = words[randomIndex]
+        const newUsedIndices = [...usedIndices, randomIndex]
+
         return {
-          wordPair: null,
-          usedWordPairIndices: context.usedWordPairIndices,
+          wordPair: pickedWord ?? null,
+          usedWordPairIndices: {
+            ...context.usedWordPairIndices,
+            [resolvedCategory]: newUsedIndices,
+          },
+          usedCivilWords: [...context.usedCivilWords, pickedWord.civil],
         }
       }
 
-      const usedIndices = context.usedWordPairIndices[resolvedCategory] ?? []
-
-      // Find available (unused) indices
-      let availableIndices = words.map((_, index) => index).filter((index) => !usedIndices.includes(index))
-
-      // If all pairs have been used, reset and shuffle
-      if (availableIndices.length === 0) {
-        availableIndices = words.map((_, index) => index)
-      }
-
-      // Fisher-Yates shuffle for uniform distribution
-      for (let i = availableIndices.length - 1; i > 0; i--) {
-        const j = cryptoRandom(i + 1)
-        ;[availableIndices[i], availableIndices[j]] = [availableIndices[j], availableIndices[i]]
-      }
-
-      const randomIndex = availableIndices[0]
-      const newUsedIndices = availableIndices.length === words.length
-        ? [randomIndex]
-        : [...usedIndices, randomIndex]
-
+      // Fallback: all 175 words exhausted — reset and pick fresh
+      const fallbackCategory = realCategories[cryptoRandom(realCategories.length)]
+      const fallbackWords = wordDatabase[fallbackCategory]
+      const fallbackIndex = cryptoRandom(fallbackWords.length)
       return {
-        wordPair: words[randomIndex] ?? null,
-        usedWordPairIndices: {
-          ...context.usedWordPairIndices,
-          [resolvedCategory]: newUsedIndices,
-        },
+        wordPair: fallbackWords[fallbackIndex] ?? null,
+        usedWordPairIndices: { [fallbackCategory]: [fallbackIndex] },
+        usedCivilWords: [fallbackWords[fallbackIndex].civil],
       }
     }),
 
@@ -662,6 +683,7 @@ export const gameMachine = setup({
       ...initialContext,
       scores: context.scores,
       usedWordPairIndices: context.usedWordPairIndices,
+      usedCivilWords: [],
       noElimination: context.noElimination,
     })),
   },
