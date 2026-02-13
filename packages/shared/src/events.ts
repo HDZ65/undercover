@@ -1,4 +1,4 @@
-import type { Player, WordCategory, GamePhase, Role, PlayerScore } from './types';
+import type { Player, WordCategory, WordPair, GamePhase, Role, PlayerScore } from './types';
 
 // --- Client -> Server events ---
 export interface ClientToServerEvents {
@@ -16,7 +16,9 @@ export interface ClientToServerEvents {
   'game:castVote': (data: { targetId: string }) => void;
   'game:submitMrWhiteGuess': (data: { guess: string }) => void;
   'game:castMrWhiteVote': (data: { accepted: boolean }) => void;
+  'game:setNoElimination': (data: { noElimination: boolean }) => void;
   'game:continueGame': () => void;
+  'game:endGame': () => void;
   'game:resetGame': () => void;
 }
 
@@ -42,7 +44,10 @@ export interface PublicGameState {
   hostId: string;
   readyPlayers: string[];
   hideRoles: boolean;
+  noElimination: boolean;
   scores: PlayerScore[];
+  revealedPlayers: string[];
+  wordPair: WordPair | null;
 }
 
 /** Player info visible to everyone (no role) */
@@ -74,5 +79,5 @@ export interface ServerToClientEvents {
 
   'game:state': (data: { publicState: PublicGameState; privateState: PrivatePlayerState }) => void;
   'game:eliminated': (data: { player: PublicPlayer & { role: Role } }) => void;
-  'game:victory': (data: { winner: Role; players: (PublicPlayer & { role: Role })[] }) => void;
+  'game:victory': (data: { winner: Role | null; players: (PublicPlayer & { role: Role })[]; wordPair: WordPair | null }) => void;
 }

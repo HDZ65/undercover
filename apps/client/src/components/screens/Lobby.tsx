@@ -32,6 +32,7 @@ export function Lobby() {
   const players = publicState.players
   const canStart = players.length >= 3 && players.length <= 20
   const hideRoles = publicState.hideRoles
+  const noElimination = publicState.noElimination
 
   const handleCopyRoom = async () => {
     if (!socket.roomCode) {
@@ -114,14 +115,14 @@ export function Lobby() {
               </div>
             </div>
 
-            <div>
+            <div className="space-y-2">
               <button
                 onClick={() => socket.setHideRoles(!hideRoles)}
                 className="w-full flex items-center justify-between min-h-[44px] px-4 py-3 rounded-lg bg-slate-100 dark:bg-slate-700 transition-all"
               >
                 <div className="text-left">
-                  <p className="font-semibold text-slate-800 dark:text-slate-100">Roles masques</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Personne ne connait son role, seulement son mot</p>
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Rôles masqués</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Personne ne connaît son rôle, seulement son mot</p>
                 </div>
                 <div
                   className={`relative w-12 h-7 rounded-full transition-colors ${
@@ -131,6 +132,27 @@ export function Lobby() {
                   <motion.div
                     className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md"
                     animate={{ left: hideRoles ? 22 : 2 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  />
+                </div>
+              </button>
+
+              <button
+                onClick={() => socket.setNoElimination(!noElimination)}
+                className="w-full flex items-center justify-between min-h-[44px] px-4 py-3 rounded-lg bg-slate-100 dark:bg-slate-700 transition-all"
+              >
+                <div className="text-left">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Mode sans élimination</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Les joueurs votés sont démasqués mais restent en jeu. Points individuels.</p>
+                </div>
+                <div
+                  className={`relative w-12 h-7 rounded-full transition-colors ${
+                    noElimination ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-slate-300 dark:bg-slate-600'
+                  }`}
+                >
+                  <motion.div
+                    className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md"
+                    animate={{ left: noElimination ? 22 : 2 }}
                     transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   />
                 </div>

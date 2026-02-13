@@ -33,6 +33,7 @@ interface UseSocketReturn {
   setCategory: (category: string) => void
   setTimerDuration: (duration: number) => void
   setHideRoles: (hideRoles: boolean) => void
+  setNoElimination: (noElimination: boolean) => void
   startDistribution: () => void
   markReady: () => void
   nextSpeaker: () => void
@@ -41,6 +42,7 @@ interface UseSocketReturn {
   submitMrWhiteGuess: (guess: string) => void
   castMrWhiteVote: (accepted: boolean) => void
   continueGame: () => void
+  endGame: () => void
   resetGame: () => void
 }
 
@@ -151,6 +153,7 @@ export function useSocket(): UseSocketReturn {
           ...previous,
           winner: data.winner,
           players: data.players,
+          wordPair: data.wordPair,
           phase: 'victory',
         }
       })
@@ -233,6 +236,13 @@ export function useSocket(): UseSocketReturn {
     [emit],
   )
 
+  const setNoElimination = useCallback(
+    (noElimination: boolean) => {
+      emit('game:setNoElimination', { noElimination })
+    },
+    [emit],
+  )
+
   const startDistribution = useCallback(() => {
     emit('game:startDistribution')
   }, [emit])
@@ -274,6 +284,10 @@ export function useSocket(): UseSocketReturn {
     emit('game:continueGame')
   }, [emit])
 
+  const endGame = useCallback(() => {
+    emit('game:endGame')
+  }, [emit])
+
   const resetGame = useCallback(() => {
     emit('game:resetGame')
   }, [emit])
@@ -304,13 +318,16 @@ export function useSocket(): UseSocketReturn {
       submitMrWhiteGuess,
       castMrWhiteVote,
       continueGame,
+      endGame,
       resetGame,
+      setNoElimination,
     }),
     [
       castMrWhiteVote,
       castVote,
       connected,
       continueGame,
+      endGame,
       createRoom,
       error,
       joinRoom,
@@ -326,6 +343,7 @@ export function useSocket(): UseSocketReturn {
       setCategory,
       setTimerDuration,
       setHideRoles,
+      setNoElimination,
       startDistribution,
       startVoting,
       submitMrWhiteGuess,

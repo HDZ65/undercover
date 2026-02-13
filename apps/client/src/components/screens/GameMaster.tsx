@@ -1,10 +1,26 @@
 import { useContext, useEffect, useMemo, useState } from 'react'
 import { motion } from 'motion/react'
+import type { Role } from '@undercover/shared'
 import { SocketContext } from '../../App'
+
+const ROLE_LABELS: Record<Role, string> = {
+  civil: 'Civil',
+  undercover: 'Undercover',
+  mrwhite: 'Mr. White',
+}
+
+const ROLE_TAG_COLORS: Record<Role, string> = {
+  civil: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300',
+  undercover: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300',
+  mrwhite: 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300',
+}
 
 export function GameMaster() {
   const socket = useContext(SocketContext)
   const [timeRemaining, setTimeRemaining] = useState(0)
+
+  const noElimination = socket?.publicState?.noElimination ?? false
+  const revealedPlayers = socket?.publicState?.revealedPlayers ?? []
 
   const alivePlayers = useMemo(() => {
     if (!socket?.publicState) {
@@ -75,45 +91,67 @@ export function GameMaster() {
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Joueurs en vie</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+            {noElimination ? 'Joueurs' : 'Joueurs en vie'}
+          </p>
           <div className="grid md:grid-cols-2 gap-2">
-            {alivePlayers.map((player) => (
-              <div
-                key={player.id}
-                className={`rounded-lg p-3 border ${
-                  player.id === currentSpeaker?.id
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60'
-                }`}
-              >
-                <p className="font-semibold text-slate-900 dark:text-slate-100">{player.name}</p>
-              </div>
-            ))}
+            {alivePlayers.map((player) => {
+              const isRevealed = revealedPlayers.includes(player.id)
+              return (
+                <div
+                  key={player.id}
+                  className={`rounded-lg p-3 border flex items-center justify-between ${
+                    player.id === currentSpeaker?.id
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60'
+                  }`}
+                >
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{player.name}</p>
+                  {isRevealed && player.role && (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${ROLE_TAG_COLORS[player.role]}`}>
+                      {ROLE_LABELS[player.role]}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
         {socket.isHost ? (
-          <div className="grid md:grid-cols-2 gap-3">
-            <motion.button
-              onClick={socket.nextSpeaker}
-              className="w-full min-h-[56px] px-6 py-4 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-bold text-lg rounded-lg"
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-            >
-              Orateur suivant
-            </motion.button>
-            <motion.button
-              onClick={socket.startVoting}
-              className="w-full min-h-[56px] px-6 py-4 bg-gradient-to-r from-rose-600 to-red-600 dark:from-rose-500 dark:to-red-500 text-white font-bold text-lg rounded-lg shadow-lg"
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-            >
-              Passer au vote
-            </motion.button>
+          <div className="space-y-3">
+            <div className="grid md:grid-cols-2 gap-3">
+              <motion.button
+                onClick={socket.nextSpeaker}
+                className="w-full min-h-[56px] px-6 py-4 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white font-bold text-lg rounded-lg"
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+              >
+                Orateur suivant
+              </motion.button>
+              <motion.button
+                onClick={socket.startVoting}
+                className="w-full min-h-[56px] px-6 py-4 bg-gradient-to-r from-rose-600 to-red-600 dark:from-rose-500 dark:to-red-500 text-white font-bold text-lg rounded-lg shadow-lg"
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+              >
+                Passer au vote
+              </motion.button>
+            </div>
+            {noElimination && (
+              <motion.button
+                onClick={socket.endGame}
+                className="w-full min-h-[44px] px-4 py-3 border-2 border-amber-500 dark:border-amber-400 text-amber-600 dark:text-amber-400 font-bold rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.99 }}
+              >
+                Terminer la partie
+              </motion.button>
+            )}
           </div>
         ) : (
           <div className="text-center text-slate-500 dark:text-slate-400 font-medium">
-            L'hote controle le tour de parole
+            L'hôte contrôle le tour de parole
           </div>
         )}
       </div>

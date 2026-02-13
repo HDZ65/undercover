@@ -23,6 +23,7 @@ type ForwardGameEvent =
   | 'SET_CATEGORY'
   | 'SET_TIMER_DURATION'
   | 'SET_HIDE_ROLES'
+  | 'SET_NO_ELIMINATION'
   | 'START_ROLE_DISTRIBUTION'
   | 'PLAYER_READY'
   | 'NEXT_SPEAKER'
@@ -31,6 +32,7 @@ type ForwardGameEvent =
   | 'SUBMIT_MRWHITE_GUESS'
   | 'CAST_MRWHITE_VOTE'
   | 'CONTINUE_GAME'
+  | 'END_GAME'
   | 'RESET_GAME';
 
 interface RoomPlayer {
@@ -304,11 +306,29 @@ export class RoomManager {
         room.actor.send({ type: 'RESOLVE_MRWHITE_VOTE' });
         return;
       }
+      case 'SET_NO_ELIMINATION': {
+        if (!this.isHost(room, player.id)) {
+          return;
+        }
+        const noElimination = (payload as { noElimination?: boolean } | undefined)?.noElimination;
+        if (typeof noElimination !== 'boolean') {
+          return;
+        }
+        room.actor.send({ type: 'SET_NO_ELIMINATION', noElimination });
+        return;
+      }
       case 'CONTINUE_GAME': {
         if (!this.isHost(room, player.id)) {
           return;
         }
         room.actor.send({ type: 'CONTINUE_GAME' });
+        return;
+      }
+      case 'END_GAME': {
+        if (!this.isHost(room, player.id)) {
+          return;
+        }
+        room.actor.send({ type: 'END_GAME' });
         return;
       }
       case 'RESET_GAME': {
@@ -407,14 +427,18 @@ export class RoomManager {
       this.io.to(room.code).emit('game:eliminated', { player: eliminatedPlayer });
     }
 
-    if (publicState.phase === 'victory' && publicState.winner) {
+    if (publicState.phase === 'victory') {
       const players = snapshot.context.players
         .filter((player): player is Player & { role: Role } => typeof player.role === 'string')
         .map((player) => ({
           ...this.toPublicPlayerFromMachine(player, room),
           role: player.role,
         }));
-      this.io.to(room.code).emit('game:victory', { winner: publicState.winner, players });
+      this.io.to(room.code).emit('game:victory', {
+        winner: publicState.winner,
+        players,
+        wordPair: snapshot.context.wordPair,
+      });
     }
   }
 
@@ -425,11 +449,13 @@ export class RoomManager {
 
     const players: PublicPlayer[] = [...room.players.values()].map((roomPlayer) => {
       const machinePlayer = machinePlayersById.get(roomPlayer.id);
+      const isRevealed = context.revealedPlayers.includes(roomPlayer.id);
       return {
         id: roomPlayer.id,
         name: roomPlayer.name,
         avatar: roomPlayer.avatar,
         isEliminated: machinePlayer?.isEliminated,
+        role: isRevealed ? machinePlayer?.role : undefined,
       };
     });
 
@@ -477,7 +503,10 @@ export class RoomManager {
       hostId: room.hostId,
       readyPlayers: [...context.readyPlayers],
       hideRoles: context.hideRoles,
+      noElimination: context.noElimination,
       scores: Object.entries(context.scores).map(([playerId, score]) => ({ playerId, score })),
+      revealedPlayers: [...context.revealedPlayers],
+      wordPair: (phase === 'elimination' || phase === 'victory') ? context.wordPair : null,
     };
   }
 

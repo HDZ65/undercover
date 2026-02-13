@@ -25,6 +25,8 @@ interface UndercoverMachineContext {
   hideRoles: boolean
   scores: Record<string, number>
   usedWordPairIndices: Record<string, number[]>
+  noElimination: boolean
+  revealedPlayers: string[]
 }
 
 type UndercoverMachineEvent =
@@ -44,7 +46,9 @@ type UndercoverMachineEvent =
   | { type: 'CAST_MRWHITE_VOTE'; voterId: string; accepted: boolean }
   | { type: 'RESOLVE_MRWHITE_VOTE' }
   | { type: 'SET_HIDE_ROLES'; hideRoles: boolean }
+  | { type: 'SET_NO_ELIMINATION'; noElimination: boolean }
   | { type: 'CONTINUE_GAME' }
+  | { type: 'END_GAME' }
   | { type: 'RESET_GAME' }
 
 const initialContext: UndercoverMachineContext = {
@@ -67,6 +71,8 @@ const initialContext: UndercoverMachineContext = {
   hideRoles: false,
   scores: {},
   usedWordPairIndices: {},
+  noElimination: false,
+  revealedPlayers: [],
 }
 
 const getCurrentVoteTargets = (context: UndercoverMachineContext): string[] => {
@@ -150,6 +156,8 @@ export const gameMachine = setup({
         roleCounts.undercover >= roleCounts.civil
       )
     },
+    isNoElimination: ({ context }) => context.noElimination,
+    isNormalMode: ({ context }) => !context.noElimination,
     mrWhiteGuessCorrect: ({ context }) => context.mrWhiteGuessResult === true,
     allMrWhiteVotesCast: ({ context }) => {
       if (context.alivePlayers.length === 0) {
@@ -441,6 +449,45 @@ export const gameMachine = setup({
       }
     }),
 
+    revealPlayer: assign(({ context }) => {
+      if (!context.eliminatedPlayer) {
+        return {
+          votes: {},
+          tieCandidates: [],
+          tieRound: 0,
+          voteResolution: 'pending' as VoteResolution,
+        }
+      }
+
+      // Award +1 to each player who voted for the revealed player IF that player is undercover/mrwhite
+      const revealedMachinePlayer = context.players.find((p) => p.id === context.eliminatedPlayer)
+      const updatedScores = { ...context.scores }
+      const isCorrectVote = revealedMachinePlayer?.role === 'undercover' || revealedMachinePlayer?.role === 'mrwhite'
+
+      if (isCorrectVote) {
+        for (const [voterId, targetId] of Object.entries(context.votes)) {
+          if (targetId === context.eliminatedPlayer) {
+            updatedScores[voterId] = (updatedScores[voterId] ?? 0) + 1
+          }
+        }
+      }
+
+      const newRevealed = context.revealedPlayers.includes(context.eliminatedPlayer)
+        ? context.revealedPlayers
+        : [...context.revealedPlayers, context.eliminatedPlayer]
+
+      return {
+        revealedPlayers: newRevealed,
+        scores: updatedScores,
+        currentRound: context.currentRound + 1,
+        votes: {},
+        tieCandidates: [],
+        tieRound: 0,
+        voteResolution: 'pending' as VoteResolution,
+        readyPlayers: [],
+      }
+    }),
+
     resetVotes: assign({
       votes: () => ({}),
     }),
@@ -564,6 +611,16 @@ export const gameMachine = setup({
       }
     }),
 
+    setNoElimination: assign(({ event }) => {
+      if (event.type !== 'SET_NO_ELIMINATION') {
+        return {}
+      }
+
+      return {
+        noElimination: event.noElimination,
+      }
+    }),
+
     advanceSpeaker: assign(({ context }) => {
       if (context.alivePlayers.length === 0) {
         return {
@@ -595,6 +652,7 @@ export const gameMachine = setup({
       ...initialContext,
       scores: context.scores,
       usedWordPairIndices: context.usedWordPairIndices,
+      noElimination: context.noElimination,
     })),
   },
 }).createMachine({
@@ -631,6 +689,9 @@ export const gameMachine = setup({
         },
         SET_HIDE_ROLES: {
           actions: 'setHideRoles',
+        },
+        SET_NO_ELIMINATION: {
+          actions: 'setNoElimination',
         },
         START_ROLE_DISTRIBUTION: {
           guard: 'hasEnoughPlayers',
@@ -689,6 +750,10 @@ export const gameMachine = setup({
         },
       },
       on: {
+        END_GAME: {
+          target: '#undercoverGame.victory',
+          actions: ['setWinner', 'computeScores'],
+        },
         RESET_GAME: {
           target: '#undercoverGame.menu',
           actions: 'resetGame',
@@ -721,17 +786,48 @@ export const gameMachine = setup({
     },
 
     elimination: {
-      entry: 'eliminatePlayer',
+      initial: 'routing',
+      states: {
+        routing: {
+          always: [
+            {
+              guard: 'isNoElimination',
+              target: 'revealed',
+              actions: 'revealPlayer',
+            },
+            {
+              target: 'eliminated',
+              actions: 'eliminatePlayer',
+            },
+          ],
+        },
+        revealed: {
+          on: {
+            CONTINUE_GAME: {
+              target: '#undercoverGame.gameRound.discussion',
+              actions: 'prepareNextRound',
+            },
+          },
+        },
+        eliminated: {
+          on: {
+            CONTINUE_GAME: [
+              {
+                guard: 'isMrWhiteEliminated',
+                target: '#undercoverGame.mrWhiteGuess',
+              },
+              {
+                target: '#undercoverGame.checkGameEnd',
+              },
+            ],
+          },
+        },
+      },
       on: {
-        CONTINUE_GAME: [
-          {
-            guard: 'isMrWhiteEliminated',
-            target: 'mrWhiteGuess',
-          },
-          {
-            target: 'checkGameEnd',
-          },
-        ],
+        END_GAME: {
+          target: 'victory',
+          actions: ['setWinner', 'computeScores'],
+        },
         RESET_GAME: {
           target: 'menu',
           actions: 'resetGame',

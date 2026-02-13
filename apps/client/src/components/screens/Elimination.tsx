@@ -19,6 +19,8 @@ export function Elimination() {
   const socket = useContext(SocketContext)
 
   const eliminated = socket?.publicState?.eliminatedPlayer
+  const noElimination = socket?.publicState?.noElimination ?? false
+  const wordPair = socket?.publicState?.wordPair
 
   if (!eliminated || !eliminated.role) {
     return null
@@ -35,12 +37,30 @@ export function Elimination() {
       transition={{ duration: 0.3 }}
     >
       <div className={`rounded-2xl bg-gradient-to-br ${ROLE_COLORS[role]} text-white shadow-2xl p-8 text-center`}>
-        <p className="uppercase tracking-wider text-sm opacity-90">Éliminé</p>
+        <p className="uppercase tracking-wider text-sm opacity-90">
+          {noElimination ? 'Démasqué' : 'Éliminé'}
+        </p>
         <h1 className="text-4xl font-black mt-2">{eliminated.name}</h1>
         <div className="mt-6 bg-white/20 rounded-xl p-4">
           <p className="text-sm uppercase tracking-wider opacity-90">Rôle révélé</p>
           <p className="text-2xl font-bold mt-1">{ROLE_LABELS[role]}</p>
         </div>
+
+        {wordPair && (
+          <div className="mt-4 bg-white/10 rounded-xl p-4 space-y-2">
+            <p className="text-sm uppercase tracking-wider opacity-90">Les mots de cette manche</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white/15 rounded-lg p-2">
+                <p className="text-xs opacity-75">Civils</p>
+                <p className="font-bold">{wordPair.civil}</p>
+              </div>
+              <div className="bg-white/15 rounded-lg p-2">
+                <p className="text-xs opacity-75">Undercover</p>
+                <p className="font-bold">{wordPair.undercover}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {socket?.isHost ? (
           <motion.button

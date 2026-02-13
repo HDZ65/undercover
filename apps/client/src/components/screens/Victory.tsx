@@ -18,9 +18,12 @@ const ROLE_LABELS: Record<Role, string> = {
 
 export function Victory() {
   const socket = useContext(SocketContext)
+  const winner = socket?.publicState?.winner ?? null
+  const noElimination = socket?.publicState?.noElimination ?? false
+  const wordPair = socket?.publicState?.wordPair
 
   useEffect(() => {
-    if (socket?.publicState?.winner !== 'civil') {
+    if (winner !== 'civil') {
       return
     }
 
@@ -47,9 +50,9 @@ export function Victory() {
     }
 
     frame()
-  }, [socket?.publicState?.winner])
+  }, [winner])
 
-  if (!socket?.publicState?.winner) {
+  if (!socket?.publicState) {
     return null
   }
 
@@ -63,15 +66,44 @@ export function Victory() {
     >
       <div className="rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 shadow-xl space-y-6">
         <div className="text-center">
-          <div
-            className={`inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r ${ROLE_COLORS[socket.publicState.winner]} text-white shadow-lg`}
-          >
-            <span className="font-bold uppercase tracking-wider">Victoire</span>
-          </div>
-          <h1 className="text-5xl font-black mt-4 text-slate-900 dark:text-slate-100">
-            {ROLE_LABELS[socket.publicState.winner]}
-          </h1>
+          {winner ? (
+            <>
+              <div
+                className={`inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r ${ROLE_COLORS[winner]} text-white shadow-lg`}
+              >
+                <span className="font-bold uppercase tracking-wider">Victoire</span>
+              </div>
+              <h1 className="text-5xl font-black mt-4 text-slate-900 dark:text-slate-100">
+                {ROLE_LABELS[winner]}
+              </h1>
+            </>
+          ) : (
+            <>
+              <div className="inline-flex items-center px-6 py-3 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg">
+                <span className="font-bold uppercase tracking-wider">Partie terminée</span>
+              </div>
+              {noElimination && (
+                <p className="mt-3 text-slate-600 dark:text-slate-400">Scores individuels</p>
+              )}
+            </>
+          )}
         </div>
+
+        {wordPair && (
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 p-4">
+            <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2 text-center">Les mots</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-center p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
+                <p className="text-xs text-emerald-600 dark:text-emerald-400">Civils</p>
+                <p className="font-bold text-emerald-800 dark:text-emerald-200">{wordPair.civil}</p>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
+                <p className="text-xs text-rose-600 dark:text-rose-400">Undercover</p>
+                <p className="font-bold text-rose-800 dark:text-rose-200">{wordPair.undercover}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-3">
           {socket.publicState.players.map((player) => {
@@ -123,7 +155,7 @@ export function Victory() {
           </motion.button>
         ) : (
           <p className="text-center text-slate-500 dark:text-slate-400 font-medium">
-            L'hote prepare la prochaine partie...
+            L'hôte prépare la prochaine partie...
           </p>
         )}
       </div>
