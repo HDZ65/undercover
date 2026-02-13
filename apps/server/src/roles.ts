@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import type { Player, Role } from '@undercover/shared';
 
 interface RoleDistribution {
@@ -21,10 +22,10 @@ const roleDistributionTable: Array<{
 const shuffleArray = <T>(items: T[]): T[] => {
   const shuffled = [...items];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
-    const randomIndex = Math.floor(Math.random() * (index + 1));
+    const j = randomInt(index + 1);
     const currentValue = shuffled[index];
-    shuffled[index] = shuffled[randomIndex];
-    shuffled[randomIndex] = currentValue;
+    shuffled[index] = shuffled[j];
+    shuffled[j] = currentValue;
   }
   return shuffled;
 };

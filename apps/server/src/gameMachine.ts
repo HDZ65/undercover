@@ -288,6 +288,27 @@ export const gameMachine = setup({
       }
     }),
 
+    reassignRoles: assign(({ context }) => {
+      const alivePlayers = context.players.filter((p) => !p.isEliminated)
+
+      if (alivePlayers.length < 3) {
+        return {}
+      }
+
+      const aliveWithNewRoles = distributeRoles(alivePlayers).map((p) => ({
+        ...p,
+        isEliminated: false,
+      }))
+
+      const newRolesById = new Map(aliveWithNewRoles.map((p) => [p.id, p.role]))
+
+      return {
+        players: context.players.map((p) =>
+          p.isEliminated ? p : { ...p, role: newRolesById.get(p.id) },
+        ),
+      }
+    }),
+
     assignWordPair: assign(({ context }) => {
       const realCategories = Object.keys(wordDatabase) as RealWordCategory[]
       const categoriesToTry: RealWordCategory[] = context.category === 'aleatoire'
@@ -837,7 +858,7 @@ export const gameMachine = setup({
           on: {
             CONTINUE_GAME: {
               target: '#undercoverGame.roleDistribution',
-              actions: ['prepareNextRound', 'assignWordPair'],
+              actions: ['prepareNextRound', 'reassignRoles', 'assignWordPair'],
             },
           },
         },
@@ -912,7 +933,7 @@ export const gameMachine = setup({
         },
         {
           target: 'roleDistribution',
-          actions: ['prepareNextRound', 'assignWordPair'],
+          actions: ['prepareNextRound', 'reassignRoles', 'assignWordPair'],
         },
       ],
       on: {
