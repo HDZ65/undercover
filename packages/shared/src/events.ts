@@ -1,7 +1,11 @@
 import type { Player, WordCategory, WordPair, GamePhase, Role, PlayerScore } from './types';
+import type {
+  PokerClientToServerEvents,
+  PokerServerToClientEvents,
+} from './poker/events';
 
 // --- Client -> Server events ---
-export interface ClientToServerEvents {
+export interface ClientToServerEvents extends PokerClientToServerEvents {
   'room:create': (data: { playerName: string }) => void;
   'room:join': (data: { roomCode: string; playerName: string; playerToken?: string }) => void;
   'room:leave': () => void;
@@ -69,7 +73,7 @@ export interface PrivatePlayerState {
   isHost: boolean;
 }
 
-export interface ServerToClientEvents {
+export interface ServerToClientEvents extends PokerServerToClientEvents {
   'room:created': (data: { roomCode: string; playerToken: string; playerId: string }) => void;
   'room:joined': (data: { roomCode: string; playerToken: string; playerId: string }) => void;
   'room:error': (data: { message: string }) => void;
