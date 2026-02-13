@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * A typed utility hook for localStorage get/set operations.
  * Handles JSON serialization/deserialization and gracefully handles corrupted data.
+ * Returns a stable setter reference that never changes.
  *
  * @template T - The type of the stored value
  * @param key - The localStorage key
@@ -13,39 +14,33 @@ export function useLocalStorage<T>(
   key: string,
   initialValue: T
 ): [T, (value: T | ((val: T) => T)) => void] {
-  // State to store our value
   const [storedValue, setStoredValue] = useState<T>(() => {
     try {
-      // Get from local storage by key
       const item = window.localStorage.getItem(key);
       if (item === null) {
         return initialValue;
       }
-      // Parse stored json or if none return initialValue
       return JSON.parse(item) as T;
     } catch (error) {
-      // If error also return initialValue
       console.warn(`Error reading localStorage key "${key}":`, error);
       return initialValue;
     }
   });
 
-  // Return a wrapped version of useState's setter function that
-  // persists the new value to localStorage
-  const setValue = (value: T | ((val: T) => T)) => {
+  const keyRef = useRef(key);
+  keyRef.current = key;
+
+  const setValue = useCallback((value: T | ((val: T) => T)) => {
     try {
-      // Allow value to be a function so we have same API as useState
-      const valueToStore =
-        value instanceof Function ? value(storedValue) : value;
-      // Save state
-      setStoredValue(valueToStore);
-      // Save to local storage
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      setStoredValue((prev) => {
+        const valueToStore = value instanceof Function ? value(prev) : value;
+        window.localStorage.setItem(keyRef.current, JSON.stringify(valueToStore));
+        return valueToStore;
+      });
     } catch (error) {
-      // A more advanced implementation would handle the error case
-      console.warn(`Error writing to localStorage key "${key}":`, error);
+      console.warn(`Error writing to localStorage key "${keyRef.current}":`, error);
     }
-  };
+  }, []);
 
   // Sync state when key changes
   useEffect(() => {

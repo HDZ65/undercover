@@ -72,7 +72,7 @@ export function useSocket(): UseSocketReturn {
   useEffect(() => {
     const socket = io(SERVER_URL, {
       autoConnect: true,
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
     })
 
     socketRef.current = socket
