@@ -8,6 +8,7 @@ export interface ClientToServerEvents {
 
   'game:setCategory': (data: { category: WordCategory }) => void;
   'game:setTimerDuration': (data: { duration: number }) => void;
+  'game:setHideRoles': (data: { hideRoles: boolean }) => void;
   'game:startDistribution': () => void;
   'game:ready': () => void;
   'game:nextSpeaker': () => void;
@@ -39,6 +40,7 @@ export interface PublicGameState {
   roomCode: string;
   hostId: string;
   readyPlayers: string[];
+  hideRoles: boolean;
 }
 
 /** Player info visible to everyone (no role) */

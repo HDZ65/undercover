@@ -22,6 +22,7 @@ interface UndercoverMachineContext {
   tieRound: number
   voteResolution: VoteResolution
   readyPlayers: string[]
+  hideRoles: boolean
 }
 
 type UndercoverMachineEvent =
@@ -40,6 +41,7 @@ type UndercoverMachineEvent =
   | { type: 'SUBMIT_MRWHITE_GUESS'; guess: string }
   | { type: 'CAST_MRWHITE_VOTE'; voterId: string; accepted: boolean }
   | { type: 'RESOLVE_MRWHITE_VOTE' }
+  | { type: 'SET_HIDE_ROLES'; hideRoles: boolean }
   | { type: 'RESET_GAME' }
 
 const initialContext: UndercoverMachineContext = {
@@ -59,6 +61,7 @@ const initialContext: UndercoverMachineContext = {
   tieRound: 0,
   voteResolution: 'pending',
   readyPlayers: [],
+  hideRoles: false,
 }
 
 const getCurrentVoteTargets = (context: UndercoverMachineContext): string[] => {
@@ -493,6 +496,16 @@ export const gameMachine = setup({
       }
     }),
 
+    setHideRoles: assign(({ event }) => {
+      if (event.type !== 'SET_HIDE_ROLES') {
+        return {}
+      }
+
+      return {
+        hideRoles: event.hideRoles,
+      }
+    }),
+
     advanceSpeaker: assign(({ context }) => {
       if (context.alivePlayers.length === 0) {
         return {
@@ -555,6 +568,9 @@ export const gameMachine = setup({
         },
         SET_TIMER_DURATION: {
           actions: 'setTimerDuration',
+        },
+        SET_HIDE_ROLES: {
+          actions: 'setHideRoles',
         },
         START_ROLE_DISTRIBUTION: {
           guard: 'hasEnoughPlayers',

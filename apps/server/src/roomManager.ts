@@ -21,6 +21,7 @@ type GameSnapshot = SnapshotFrom<typeof gameMachine>;
 type ForwardGameEvent =
   | 'SET_CATEGORY'
   | 'SET_TIMER_DURATION'
+  | 'SET_HIDE_ROLES'
   | 'START_ROLE_DISTRIBUTION'
   | 'PLAYER_READY'
   | 'NEXT_SPEAKER'
@@ -245,6 +246,17 @@ export class RoomManager {
         room.actor.send({ type: 'SET_TIMER_DURATION', duration });
         return;
       }
+      case 'SET_HIDE_ROLES': {
+        if (!this.isHost(room, player.id)) {
+          return;
+        }
+        const hideRoles = (payload as { hideRoles?: boolean } | undefined)?.hideRoles;
+        if (typeof hideRoles !== 'boolean') {
+          return;
+        }
+        room.actor.send({ type: 'SET_HIDE_ROLES', hideRoles });
+        return;
+      }
       case 'START_ROLE_DISTRIBUTION': {
         if (!this.isHost(room, player.id)) {
           return;
@@ -455,6 +467,7 @@ export class RoomManager {
       roomCode: room.code,
       hostId: room.hostId,
       readyPlayers: [...context.readyPlayers],
+      hideRoles: context.hideRoles,
     };
   }
 
@@ -473,10 +486,13 @@ export class RoomManager {
 
     const hasVoted = typeof context.votes[playerId] === 'string';
 
+    // When hideRoles is enabled, don't send the role to the player
+    const role = context.hideRoles ? undefined : machinePlayer?.role;
+
     return {
       playerId,
       playerToken: roomPlayer?.playerToken ?? '',
-      role: machinePlayer?.role,
+      role,
       word,
       hasVoted,
       isHost: room.hostId === playerId,

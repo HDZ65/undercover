@@ -10,7 +10,7 @@ import type {
   WordCategory,
 } from '@undercover/shared'
 
-const SERVER_URL = 'http://localhost:3001'
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'
 const STORAGE_KEY_TOKEN = 'undercover-player-token'
 const STORAGE_KEY_ROOM = 'undercover-room-code'
 
@@ -32,6 +32,7 @@ interface UseSocketReturn {
   leaveRoom: () => void
   setCategory: (category: string) => void
   setTimerDuration: (duration: number) => void
+  setHideRoles: (hideRoles: boolean) => void
   startDistribution: () => void
   markReady: () => void
   nextSpeaker: () => void
@@ -224,6 +225,13 @@ export function useSocket(): UseSocketReturn {
     [emit],
   )
 
+  const setHideRoles = useCallback(
+    (hideRoles: boolean) => {
+      emit('game:setHideRoles', { hideRoles })
+    },
+    [emit],
+  )
+
   const startDistribution = useCallback(() => {
     emit('game:startDistribution')
   }, [emit])
@@ -282,6 +290,7 @@ export function useSocket(): UseSocketReturn {
       leaveRoom,
       setCategory,
       setTimerDuration,
+      setHideRoles,
       startDistribution,
       markReady,
       nextSpeaker,
@@ -309,6 +318,7 @@ export function useSocket(): UseSocketReturn {
       roomCode,
       setCategory,
       setTimerDuration,
+      setHideRoles,
       startDistribution,
       startVoting,
       submitMrWhiteGuess,

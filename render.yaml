@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: undercover-server
+    runtime: node
+    region: frankfurt
+    plan: free
+    rootDir: apps/server
+    buildCommand: cd ../.. && npm install && npm run build --workspace=packages/shared && npm run build --workspace=apps/server
+    startCommand: node dist/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_URL
+        sync: false

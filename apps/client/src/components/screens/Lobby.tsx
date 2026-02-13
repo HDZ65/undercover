@@ -30,6 +30,7 @@ export function Lobby() {
   const publicState = socket.publicState
   const players = publicState.players
   const canStart = players.length >= 3 && players.length <= 20
+  const hideRoles = publicState.hideRoles
 
   const handleCopyRoom = async () => {
     if (!socket.roomCode) {
@@ -110,6 +111,29 @@ export function Lobby() {
                   </motion.button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <button
+                onClick={() => socket.setHideRoles(!hideRoles)}
+                className="w-full flex items-center justify-between min-h-[44px] px-4 py-3 rounded-lg bg-slate-100 dark:bg-slate-700 transition-all"
+              >
+                <div className="text-left">
+                  <p className="font-semibold text-slate-800 dark:text-slate-100">Roles masques</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Personne ne connait son role, seulement son mot</p>
+                </div>
+                <div
+                  className={`relative w-12 h-7 rounded-full transition-colors ${
+                    hideRoles ? 'bg-gradient-to-r from-blue-600 to-purple-600' : 'bg-slate-300 dark:bg-slate-600'
+                  }`}
+                >
+                  <motion.div
+                    className="absolute top-0.5 w-6 h-6 rounded-full bg-white shadow-md"
+                    animate={{ left: hideRoles ? 22 : 2 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                  />
+                </div>
+              </button>
             </div>
 
             {!canStart && (
