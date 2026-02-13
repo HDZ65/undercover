@@ -862,3 +862,102 @@ Convention and pattern discoveries from implementation.
 - Task 25 (Client Hook) can connect real game state via socket
 - Task 26 (Full Integration) can wire all components together
 
+
+## Wave 5: Bet Slider & Action Buttons Component (2026-02-13)
+
+### BetControls Component Architecture
+- **File**: `apps/client/src/components/screens/poker/components/BetControls.tsx` (200+ lines)
+- **Pattern**: React functional component with Framer Motion animations and keyboard shortcuts
+- **Props interface**:
+  - `availableActions: PokerAction[]` - Actions player can take
+  - `minBet: number` - Minimum bet amount (centimes)
+  - `maxBet: number` - Maximum bet amount (centimes)
+  - `potSize: number` - Current pot size for quick bet calculations
+  - `onAction: (action: PokerAction, amount?: number) => void` - Action callback
+  - `disabled?: boolean` - Disable all controls when not player's turn
+
+### Action Button Implementation
+- **5 action buttons**: Fold (red), Check/Call (blue), Raise (yellow), All-In (purple)
+- **Smart Check/Call logic**: Shows Check if available, otherwise Call, otherwise empty slot
+- **Disabled states**: Buttons disabled when:
+  - `disabled` prop is true (not player's turn)
+  - Action not in `availableActions` array
+- **Mobile-friendly**: Shows abbreviated labels on mobile (F, C, R, A), full labels on desktop
+- **Framer Motion**: Hover scale (1.05) and tap scale (0.95) animations
+
+### Bet Slider Implementation
+- **HTML range input**: Min/max validation with visual feedback
+- **Display**: Shows current bet amount in emerald green
+- **Range labels**: Shows min and max bet amounts
+- **Disabled state**: Disabled when not player's turn or raise not available
+- **Responsive**: Full width with accent color (emerald-500)
+
+### Quick Bet Buttons
+- **3 buttons**: 1/2 Pot, Pot, 2x Pot
+- **Calculations**:
+  - `halfPot = Math.floor(potSize / 2)`
+  - `pot = potSize`
+  - `twoPot = potSize * 2`
+- **Clamping**: All quick bets clamped to [minBet, maxBet] range
+- **Grid layout**: 3-column grid on all screen sizes
+- **Only shown**: When raise action is available
+
+### Keyboard Shortcuts Implementation
+- **useEffect hook**: Registers keydown listener on mount, cleans up on unmount
+- **Shortcuts**:
+  - `F` → Fold (if available)
+  - `C` → Check (if available) or Call (if check not available)
+  - `R` → Raise with current slider amount (if available)
+  - `A` → All-In (if available)
+- **Disabled when**: `disabled` prop is true
+- **Case-insensitive**: Uses `e.key.toLowerCase()`
+- **preventDefault**: Prevents default browser behavior for all shortcuts
+
+### Keyboard Shortcuts Display
+- **Info section**: Shows keyboard shortcuts at bottom with `<kbd>` styling
+- **Format**: "Keyboard: F Fold • C Check/Call • R Raise • A All-In"
+- **Styling**: Slate-400 text with slate-800 background for kbd elements
+
+### Styling and Responsive Design
+- **Container**: Slate-900/950 background with backdrop blur and border
+- **Mobile-first**: Grid layout adapts from 2 columns (mobile) to 5 columns (desktop)
+- **Touch targets**: Min 48px height (44px + padding) for mobile accessibility
+- **Dark mode**: All colors have dark: variants
+- **Animations**: Framer Motion for smooth button interactions
+
+### State Management
+- **betAmount state**: Tracks current slider value
+- **useEffect**: Updates betAmount when minBet/maxBet changes (clamping logic)
+- **Callback**: `onAction` called with action and optional amount (for raise)
+
+### Design Decisions
+1. **Separate Check/Call logic**: Shows only available action, not both
+2. **Quick bet buttons only for raise**: Reduces UI clutter when raise not available
+3. **Keyboard shortcuts in useEffect**: Proper cleanup prevents memory leaks
+4. **Clamping on quick bets**: Ensures all bets respect min/max constraints
+5. **Framer Motion for buttons**: Provides tactile feedback without blocking
+6. **Mobile abbreviations**: Saves space on small screens while keeping full labels on desktop
+7. **Disabled state styling**: Opacity 50% + cursor-not-allowed for clear feedback
+
+### Verification Results
+- ✅ Component created successfully at `apps/client/src/components/screens/poker/components/BetControls.tsx`
+- ✅ No TypeScript errors (LSP diagnostics clean)
+- ✅ `npm run build` completed with 0 errors
+- ✅ All 5 action buttons implemented
+- ✅ Bet slider with min/max validation
+- ✅ Quick bet buttons (pot, 1/2 pot, 2x pot)
+- ✅ Keyboard shortcuts (F, C, R, A)
+- ✅ Proper disabled states when not player's turn
+- ✅ Mobile-friendly touch controls (48px+ height)
+- ✅ Tailwind CSS styling with dark mode support
+
+### Integration Points
+- **PokerTable component**: Can import and render BetControls below community cards
+- **Socket integration**: `onAction` callback sends actions to server via socket
+- **Game state**: `availableActions` comes from `PokerPrivateState.availableActions`
+- **Bet bounds**: `minBet`/`maxBet` come from `PokerPrivateState.minBetAmount`/`maxBetAmount`
+
+### Next Steps
+- Task 23 (Chip Animations) can enhance bet slider and button animations
+- Task 25 (Client Hook) can wire real game state to BetControls
+- Task 26 (Full Integration) can connect BetControls to PokerTable layout

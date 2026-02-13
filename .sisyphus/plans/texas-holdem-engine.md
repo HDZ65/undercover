@@ -1664,7 +1664,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 22. Bet Slider & Action Buttons
+- [x] 22. Bet Slider & Action Buttons
 
   **What to do**:
   - Create `apps/client/src/components/screens/poker/BetControls.tsx`:
