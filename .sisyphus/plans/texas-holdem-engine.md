@@ -500,7 +500,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 4. Card & Deck Module with CSPRNG Shuffle [TDD]
+- [x] 4. Card & Deck Module with CSPRNG Shuffle [TDD]
 
   **What to do**:
   - **RED**: Write tests first in `apps/server/src/poker/__tests__/deck.test.ts`:
