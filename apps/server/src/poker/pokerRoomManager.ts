@@ -194,6 +194,30 @@ export class PokerRoomManager {
     }
   }
 
+  toggleStraddle(socket: ServerSocket): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) {
+      return;
+    }
+
+    const snapshot = resolved.room.actor.getSnapshot();
+    
+    // Validate straddle is enabled
+    if (!snapshot.context.tableConfig.straddleEnabled) {
+      socket.emit('poker:error', { message: 'Straddle is not enabled at this table.', code: 'STRADDLE_DISABLED' });
+      return;
+    }
+
+    // Validate phase is preFlop
+    if (snapshot.context.currentPhase !== 'preFlop') {
+      socket.emit('poker:error', { message: 'Straddle can only be posted pre-flop.', code: 'INVALID_PHASE' });
+      return;
+    }
+
+    // Send STRADDLE event to actor
+    resolved.room.actor.send({ type: 'STRADDLE', playerId: resolved.player.id });
+  }
+
   handleAction(socket: ServerSocket, action: PokerAction, payload?: ActionPayload): void {
     const resolved = this.resolveRoomAndPlayer(socket);
     if (!resolved) {
@@ -235,6 +259,19 @@ export class PokerRoomManager {
       playerId: resolved.player.id,
       action,
       amount: payload?.amount,
+    });
+  }
+
+  acceptRunItTwice(socket: ServerSocket, data: { accepted: boolean }): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) {
+      return;
+    }
+
+    resolved.room.actor.send({
+      type: 'ACCEPT_RUN_IT_TWICE',
+      playerId: resolved.player.id,
+      accept: data.accepted,
     });
   }
 

@@ -65,6 +65,10 @@ export class BettingEngine {
 
   private activePlayerId: string | null = null;
 
+  private straddlePlayerId: string | null = null;
+
+  private straddleAmount = 0;
+
   constructor(config: TableConfig, playerStacks: Map<string, number>, dealerSeatIndex: number) {
     if (playerStacks.size < 2) {
       throw new Error('BettingEngine requires at least 2 players.');
@@ -446,7 +450,7 @@ export class BettingEngine {
 
   private resetRoundState(): void {
     this.currentBet = 0;
-    this.lastRaise = this.config.bigBlind;
+    this.lastRaise = this.straddleAmount > 0 ? this.straddleAmount : this.config.bigBlind;
     this.lastAggressor = null;
     this.activePlayerId = null;
     this.actedPlayers.clear();
@@ -474,11 +478,20 @@ export class BettingEngine {
 
     const sbPosted = this.postBlind(sbPlayerId, this.config.smallBlind);
     const bbPosted = this.postBlind(bbPlayerId, this.config.bigBlind);
-    this.currentBet = Math.max(sbPosted, bbPosted);
-    this.lastRaise = this.config.bigBlind;
+    
+    // If straddle is posted, it becomes the current bet
+    if (this.straddleAmount > 0) {
+      this.currentBet = this.straddleAmount;
+      this.lastRaise = this.straddleAmount;
+    } else {
+      this.currentBet = Math.max(sbPosted, bbPosted);
+      this.lastRaise = this.config.bigBlind;
+    }
 
     this.pendingPlayers = new Set(this.getPlayersAbleToAct());
     this.cleanupPendingPlayers();
+    
+    // If straddle is active, first to act is still UTG, but straddle player acts last
     this.activePlayerId = this.findPendingPlayerFromSeat(firstToAct);
   }
 
@@ -523,6 +536,34 @@ export class BettingEngine {
 
     this.stacks.set(playerId, newStack);
     this.betsPerPlayer.set(playerId, updatedBet);
+
+    if (newStack === 0) {
+      this.allInPlayers.add(playerId);
+    }
+
+    return postedAmount;
+  }
+
+  postStraddle(playerId: string): number {
+    assertInteger(this.config.bigBlind, 'bigBlind');
+    const straddleAmount = this.config.bigBlind * 2;
+    
+    const stack = this.stacks.get(playerId) ?? 0;
+    if (stack === 0) {
+      this.allInPlayers.add(playerId);
+      return 0;
+    }
+
+    const postedAmount = Math.min(straddleAmount, stack);
+    const newStack = subtractChips(stack, postedAmount);
+    const currentBet = this.betsPerPlayer.get(playerId) ?? 0;
+    const updatedBet = addChips(currentBet, postedAmount);
+
+    this.stacks.set(playerId, newStack);
+    this.betsPerPlayer.set(playerId, updatedBet);
+    
+    this.straddlePlayerId = playerId;
+    this.straddleAmount = postedAmount;
 
     if (newStack === 0) {
       this.allInPlayers.add(playerId);
@@ -612,6 +653,21 @@ export class BettingEngine {
 
     if (pendingSeatIndices.length === 0) {
       return null;
+    }
+
+    // If straddle is active in pre-flop, straddle player should act last
+    if (this.phase === 'preFlop' && this.straddlePlayerId && this.pendingPlayers.has(this.straddlePlayerId)) {
+      const straddleSeat = this.getSeatIndex(this.straddlePlayerId);
+      const nonStraddleSeats = pendingSeatIndices.filter((seat) => seat !== straddleSeat);
+      
+      // If there are other pending players, skip straddle player for now
+      if (nonStraddleSeats.length > 0) {
+        const nextSeat = nonStraddleSeats.find((seatIndex) => seatIndex >= startSeat) ?? nonStraddleSeats[0];
+        return this.playerIdBySeat.get(nextSeat) ?? null;
+      }
+      
+      // If only straddle player is pending, they act now
+      return this.straddlePlayerId;
     }
 
     const nextSeat = pendingSeatIndices.find((seatIndex) => seatIndex >= startSeat) ?? pendingSeatIndices[0];

@@ -187,6 +187,54 @@ export class PotManager {
     return payouts;
   }
 
+  public distributeHalfPots(
+    winners: Map<number, string[]>,
+    dealerSeatIndex: number,
+    playerSeatIndices: Map<string, number>,
+  ): Map<string, number> {
+    assertInteger(dealerSeatIndex, 'dealerSeatIndex');
+
+    const payouts = new Map<string, number>();
+
+    this.pots.forEach((pot, potIndex) => {
+      const winnerIds = winners.get(potIndex) ?? [];
+      const uniqueWinnerIds = toUniquePlayerIds(winnerIds);
+      const eligibleWinners = uniqueWinnerIds.filter((playerId) => pot.eligiblePlayerIds.includes(playerId));
+
+      if (eligibleWinners.length === 0) {
+        return;
+      }
+
+      // Split pot in half for run-it-twice
+      const { perPlayer: halfPot, remainder: halfPotRemainder } = divideChips(pot.amount, 2);
+
+      // Distribute each half-pot
+      for (let boardIndex = 0; boardIndex < 2; boardIndex += 1) {
+        const boardAmount = addChips(halfPot, boardIndex === 0 ? halfPotRemainder : ZERO_CHIPS);
+        const { perPlayer, remainder } = divideChips(boardAmount, eligibleWinners.length);
+
+        for (const playerId of eligibleWinners) {
+          const currentPayout = payouts.get(playerId) ?? ZERO_CHIPS;
+          payouts.set(playerId, addChips(currentPayout, perPlayer));
+        }
+
+        if (remainder === ZERO_CHIPS) {
+          continue;
+        }
+
+        const oddChipOrder = getOddChipOrder(eligibleWinners, dealerSeatIndex, playerSeatIndices);
+
+        for (let oddChipIndex = 0; oddChipIndex < remainder; oddChipIndex += 1) {
+          const recipientId = oddChipOrder[oddChipIndex % oddChipOrder.length];
+          const currentPayout = payouts.get(recipientId) ?? ZERO_CHIPS;
+          payouts.set(recipientId, addChips(currentPayout, 1));
+        }
+      }
+    });
+
+    return payouts;
+  }
+
   public getTotalPot(): number {
     return this.pots.reduce((total, currentPot) => addChips(total, currentPot.amount), ZERO_CHIPS);
   }

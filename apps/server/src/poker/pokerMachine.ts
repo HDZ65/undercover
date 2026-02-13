@@ -48,6 +48,13 @@ type ShowdownState = {
   winnersByPot: Record<number, string[]>;
 };
 
+type RunItTwiceState = {
+  eligible: boolean;
+  playerAgreements: Record<string, boolean>;
+  agreed: boolean;
+  timeoutAt: number;
+};
+
 export interface PokerMachineContext {
   deck: Card[];
   communityCards: Card[];
@@ -63,6 +70,7 @@ export interface PokerMachineContext {
   tableConfig: TableConfig;
   showdownState: ShowdownState;
   actionTimeoutMs: number;
+  runItTwiceState: RunItTwiceState;
 }
 
 export type PokerMachineEvent =
@@ -72,7 +80,10 @@ export type PokerMachineEvent =
   | { type: 'PLAYER_DISCONNECT'; playerId: string }
   | { type: 'PLAYER_RECONNECT'; playerId: string }
   | { type: 'SIT_OUT'; playerId: string }
-  | { type: 'SIT_IN'; playerId: string };
+  | { type: 'SIT_IN'; playerId: string }
+  | { type: 'ACCEPT_RUN_IT_TWICE'; playerId: string; accept: boolean }
+  | { type: 'RUN_IT_TWICE_TIMEOUT' }
+  | { type: 'STRADDLE'; playerId: string };
 
 const EMPTY_ACTIONS_BY_PHASE: Record<BettingRoundPhase, RoundActionRecord[]> = {
   preFlop: [],
@@ -148,6 +159,15 @@ const createInitialBettingState = (): SerializedBettingEngineState => {
   };
 };
 
+const createInitialRunItTwiceState = (): RunItTwiceState => {
+  return {
+    eligible: false,
+    playerAgreements: {},
+    agreed: false,
+    timeoutAt: 0,
+  };
+};
+
 const initialContext: PokerMachineContext = {
   deck: [],
   communityCards: [],
@@ -172,6 +192,7 @@ const initialContext: PokerMachineContext = {
     winnersByPot: {},
   },
   actionTimeoutMs: ACTION_TIMEOUT_MS,
+  runItTwiceState: createInitialRunItTwiceState(),
 };
 
 const createBettingEngine = (context: PokerMachineContext): BettingEngine | null => {
@@ -519,6 +540,59 @@ export const pokerMachine = setup({
 
       return engine.validateAction(event.playerId, event.action, event.amount).valid;
     },
+    isRunItTwiceEligible: ({ context }) => {
+      if (!context.tableConfig.runItTwiceEnabled) {
+        return false;
+      }
+
+      const playersInHand = getPlayersStillInHand(context);
+      if (playersInHand.length !== 2) {
+        return false;
+      }
+
+      const allInPlayers = playersInHand.filter((player) => player.status === 'allIn');
+      return allInPlayers.length === playersInHand.length;
+    },
+    isRunItTwiceAgreed: ({ context }) => {
+      return context.runItTwiceState.agreed;
+    },
+    isStraddleAllowed: ({ context, event }) => {
+      if (event.type !== 'STRADDLE') {
+        return false;
+      }
+
+      // Straddle only allowed if enabled in table config
+      if (!context.tableConfig.straddleEnabled) {
+        return false;
+      }
+
+      // Straddle only allowed in preFlop phase
+      if (context.currentPhase !== 'preFlop') {
+        return false;
+      }
+
+      // Straddle only allowed before cards are dealt (no hole cards yet)
+      const player = context.players.find((p) => p.id === event.playerId);
+      if (!player || player.holeCards !== null) {
+        return false;
+      }
+
+      // Straddle player must be UTG (left of BB)
+      const handPlayers = sortPlayersBySeat(context.players).filter((p) => p.status !== 'sitOut' && p.chipStack > 0);
+      if (handPlayers.length < 2) {
+        return false;
+      }
+
+      const engine = createBettingEngine(context);
+      if (!engine) {
+        return false;
+      }
+
+      const { bbSeat, firstToAct } = engine.getBlindsOrder(handPlayers.map((p) => p.seatIndex));
+      const straddleSeat = firstToAct; // UTG is first to act, which is straddle position
+
+      return player.seatIndex === straddleSeat;
+    },
   },
   actions: {
     dealHoleCards: assign(({ context }) => {
@@ -683,6 +757,86 @@ export const pokerMachine = setup({
       };
     }),
 
+    postStraddle: assign(({ context, event }) => {
+      if (event.type !== 'STRADDLE') {
+        return {};
+      }
+
+      const player = context.players.find((p) => p.id === event.playerId);
+      if (!player) {
+        return {};
+      }
+
+      const straddleAmount = context.tableConfig.bigBlind * 2;
+      const postedAmount = Math.min(straddleAmount, player.chipStack);
+
+      const updatedPlayers = context.players.map((p) => {
+        if (p.id !== event.playerId) {
+          return p;
+        }
+
+        const nextStack = p.chipStack - postedAmount;
+        return {
+          ...p,
+          chipStack: nextStack,
+          currentBet: postedAmount,
+          status: nextStack === 0 ? ('allIn' as const) : p.status,
+        };
+      });
+
+      const postedBets = {
+        ...context.potManagerState.playerBets,
+        [event.playerId]: (context.potManagerState.playerBets[event.playerId] ?? 0) + postedAmount,
+      };
+
+      // Update betting engine to reflect straddle
+      const engine = createBettingEngine({
+        ...context,
+        players: updatedPlayers,
+      });
+
+      if (!engine) {
+        return {};
+      }
+
+      // Post straddle in the engine
+      engine.postStraddle(event.playerId);
+
+      let nextActivePlayerId: string | null = null;
+      let roundComplete = false;
+      let minRaise = straddleAmount * 2;
+      
+      nextActivePlayerId = engine.getNextActivePlayer();
+      roundComplete = engine.isRoundComplete();
+      if (nextActivePlayerId) {
+        minRaise = engine.getAvailableActions(nextActivePlayerId).minRaise;
+      }
+
+      return {
+        players: updatedPlayers,
+        activePlayers: updatedPlayers.filter((p) => p.status === 'active').map((p) => p.id),
+        potManagerState: {
+          ...context.potManagerState,
+          playerBets: postedBets,
+          pots: calculatePots({
+            ...context,
+            potManagerState: {
+              ...context.potManagerState,
+              playerBets: postedBets,
+            },
+          }),
+        },
+        bettingEngineState: {
+          ...context.bettingEngineState,
+          currentBet: postedAmount,
+          minRaise,
+          lastRaise: straddleAmount,
+          activePlayerId: nextActivePlayerId,
+          roundComplete,
+        },
+      };
+    }),
+
     dealCommunity: assign(({ context }) => {
       if (!isBettingRoundPhase(context.currentPhase) || context.currentPhase === 'preFlop') {
         return {};
@@ -779,11 +933,23 @@ export const pokerMachine = setup({
       );
 
       const seatIndices = new Map(context.players.map((player) => [player.id, player.seatIndex]));
-      const payouts = manager.distributePots(
-        new Map(Object.entries(winnersByPot).map(([potIndex, playerIds]) => [Number(potIndex), playerIds])),
-        context.dealerSeatIndex,
-        seatIndices,
-      );
+      
+      let payouts: Map<string, number>;
+      if (context.runItTwiceState.agreed) {
+        // Run-it-twice: distribute half-pots
+        payouts = manager.distributeHalfPots(
+          new Map(Object.entries(winnersByPot).map(([potIndex, playerIds]) => [Number(potIndex), playerIds])),
+          context.dealerSeatIndex,
+          seatIndices,
+        );
+      } else {
+        // Normal distribution
+        payouts = manager.distributePots(
+          new Map(Object.entries(winnersByPot).map(([potIndex, playerIds]) => [Number(potIndex), playerIds])),
+          context.dealerSeatIndex,
+          seatIndices,
+        );
+      }
 
       const payoutsRecord = toRecord(payouts);
       const players = context.players.map((player) => ({
@@ -1126,6 +1292,63 @@ export const pokerMachine = setup({
         activePlayers: updatedPlayers.filter((player) => player.status === 'active').map((player) => player.id),
       };
     }),
+
+    initializeRunItTwice: assign(({ context }) => {
+      const playersInHand = getPlayersStillInHand(context);
+      const playerAgreements: Record<string, boolean> = {};
+      for (const player of playersInHand) {
+        playerAgreements[player.id] = false;
+      }
+
+      return {
+        runItTwiceState: {
+          eligible: true,
+          playerAgreements,
+          agreed: false,
+          timeoutAt: Date.now() + 10000, // 10s timeout
+        },
+      };
+    }),
+
+    recordRunItTwiceResponse: assign(({ context, event }) => {
+      if (event.type !== 'ACCEPT_RUN_IT_TWICE') {
+        return {};
+      }
+
+      const updatedAgreements = {
+        ...context.runItTwiceState.playerAgreements,
+        [event.playerId]: event.accept,
+      };
+
+      const allResponded = Object.keys(updatedAgreements).every((playerId) => {
+        return updatedAgreements[playerId] !== undefined;
+      });
+
+      const allAgreed = allResponded && Object.values(updatedAgreements).every((agreed) => agreed);
+
+      return {
+        runItTwiceState: {
+          ...context.runItTwiceState,
+          playerAgreements: updatedAgreements,
+          agreed: allAgreed,
+        },
+      };
+    }),
+
+    finalizeRunItTwiceDecision: assign(({ context }) => {
+      const allAgreed = Object.values(context.runItTwiceState.playerAgreements).every((agreed) => agreed);
+
+      return {
+        runItTwiceState: {
+          ...context.runItTwiceState,
+          agreed: allAgreed,
+        },
+      };
+    }),
+
+    resetRunItTwice: assign({
+      runItTwiceState: () => createInitialRunItTwiceState(),
+    }),
   },
 }).createMachine({
   id: 'pokerGame',
@@ -1156,6 +1379,10 @@ export const pokerMachine = setup({
     preFlop: {
       entry: ['setPreFlopPhase', 'prepareHand', 'dealHoleCards', 'postBlinds', 'startActionTimer'],
       on: {
+        STRADDLE: {
+          guard: 'isStraddleAllowed',
+          actions: 'postStraddle',
+        },
         PLAYER_ACTION: {
           guard: 'isActionValid',
           actions: ['executePlayerAction', 'startActionTimer'],
@@ -1292,13 +1519,52 @@ export const pokerMachine = setup({
         },
         {
           guard: 'isRoundComplete',
+          target: 'checkRunItTwice',
+        },
+      ],
+    },
+
+    checkRunItTwice: {
+      always: [
+        {
+          guard: 'isRunItTwiceEligible',
+          target: 'runItTwiceDecision',
+          actions: 'initializeRunItTwice',
+        },
+        {
           target: 'showdown',
         },
       ],
     },
 
+    runItTwiceDecision: {
+      on: {
+        ACCEPT_RUN_IT_TWICE: {
+          actions: 'recordRunItTwiceResponse',
+        },
+        PLAYER_DISCONNECT: {
+          actions: 'handleDisconnect',
+        },
+        PLAYER_RECONNECT: {
+          actions: 'handleReconnect',
+        },
+      },
+      always: [
+        {
+          guard: 'isRunItTwiceAgreed',
+          target: 'showdown',
+        },
+      ],
+      after: {
+        10000: {
+          target: 'showdown',
+          actions: 'finalizeRunItTwiceDecision',
+        },
+      },
+    },
+
     showdown: {
-      entry: ['setShowdownPhase', 'completeBoardForShowdown', 'evaluateShowdown', 'distributePots'],
+      entry: ['setShowdownPhase', 'completeBoardForShowdown', 'evaluateShowdown', 'distributePots', 'resetRunItTwice'],
       always: {
         target: 'handComplete',
       },

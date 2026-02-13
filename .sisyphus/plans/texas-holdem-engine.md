@@ -1420,7 +1420,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 17. Straddle Variant Logic
+- [x] 17. Straddle Variant Logic
 
   **What to do**:
   - Add straddle support to BettingEngine (Task 9):
@@ -1460,7 +1460,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 18. Run-it-Twice Variant Logic
+- [x] 18. Run-it-Twice Variant Logic
 
   **What to do**:
   - Add run-it-twice support:

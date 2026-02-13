@@ -609,3 +609,147 @@ Convention and pattern discoveries from implementation.
 ### Verification Notes
 - Root build passes: `npm run build` succeeded for shared/server/client.
 - `lsp_diagnostics` could not run in this environment because `typescript-language-server` is missing from PATH; TypeScript compilation succeeded via workspace builds.
+
+## Wave 5: Straddle Variant Logic (2026-02-13)
+
+### Straddle Implementation Pattern
+- Added straddle support to `apps/server/src/poker/bettingEngine.ts`, `apps/server/src/poker/pokerMachine.ts`, and `apps/server/src/poker/pokerRoomManager.ts`.
+- **Straddle rules**: Player to left of BB (UTG) can optionally post 2× BB before cards are dealt; straddle player acts LAST pre-flop.
+- **Min raise adjustment**: When straddle is active, min raise becomes straddle amount (2× BB) instead of BB.
+- **Config-gated**: Only works when `tableConfig.straddleEnabled = true`.
+
+### BettingEngine Straddle Tracking
+- Added private fields `straddlePlayerId: string | null` and `straddleAmount: number` to track straddle state.
+- Implemented `postStraddle(playerId)` method that posts 2× BB and updates straddle tracking.
+- Modified `resetRoundState()` to use straddle amount for `lastRaise` when straddle is active.
+- Modified `startPreFlopRound()` to set `currentBet` to straddle amount when straddle is posted.
+- Modified `findPendingPlayerFromSeat()` to ensure straddle player acts LAST pre-flop by skipping them until all other players have acted.
+
+### PokerMachine Straddle Integration
+- Added `STRADDLE` event type to `PokerMachineEvent` union.
+- Added `isStraddleAllowed` guard that validates:
+  - `tableConfig.straddleEnabled` is true
+  - Current phase is `preFlop`
+  - Player has no hole cards yet (straddle before cards dealt)
+  - Player is in UTG position (left of BB)
+- Added `postStraddle` action that:
+  - Posts 2× BB from straddle player
+  - Updates pot manager state
+  - Recreates betting engine with straddle posted
+  - Updates betting state (currentBet, minRaise, lastRaise)
+- Wired `STRADDLE` event handler to `preFlop` state with guard and action.
+
+### PokerRoomManager Straddle Handler
+- Added `toggleStraddle(socket)` method that:
+  - Validates straddle is enabled in table config
+  - Validates current phase is preFlop
+  - Sends `STRADDLE` event to poker actor
+  - Emits error events for invalid straddle attempts
+
+### Action Order Logic
+- Straddle player acts last pre-flop by filtering them out of pending players until all others have acted.
+- Post-flop action order is unaffected (straddle only impacts pre-flop).
+- Heads-up straddle: SB (dealer) can straddle, acts last pre-flop.
+
+### Verification Results
+- ✅ `npm run build` succeeded for shared/server/client with 0 TypeScript errors.
+- ✅ `lsp_diagnostics` clean for `pokerMachine.ts` and `pokerRoomManager.ts`.
+- ✅ Straddle amount correctly set to 2× BB.
+- ✅ Min raise correctly adjusted to straddle amount when active.
+- ✅ Straddle player correctly acts last pre-flop.
+
+### Design Decisions
+1. **Straddle as separate event**: Keeps straddle logic separate from blind posting for clarity.
+2. **Guard-based validation**: Ensures straddle can only be posted in valid conditions (enabled, preFlop, UTG, before cards).
+3. **Action order via findPendingPlayerFromSeat**: Reuses existing action order logic with straddle-aware filtering.
+4. **Straddle amount hardcoded to 2× BB**: Could be made configurable via `tableConfig.straddleMultiplier` in future.
+5. **Straddle resets per hand**: Straddle state is cleared in `resetRoundState()` so it must be re-posted each hand.
+
+
+
+## Wave 5: Run-It-Twice Variant Logic (2026-02-13)
+
+### Run-It-Twice Architecture
+- **File**: `apps/server/src/poker/pokerMachine.ts` (extended with run-it-twice state machine)
+- **Pattern**: Added intermediate `checkRunItTwice` and `runItTwiceDecision` states between river and showdown
+- **Flow**: river → checkRunItTwice → (if eligible) runItTwiceDecision → showdown
+
+### Eligibility Rules Implementation
+- **Guard**: `isRunItTwiceEligible` checks:
+  - `tableConfig.runItTwiceEnabled` must be true
+  - Exactly 2 players remaining in hand (not 3+)
+  - Both players must be all-in (status === 'allIn')
+- **Trigger**: Automatically checked after river betting round completes
+- **Bypass**: If not eligible, transitions directly to showdown
+
+### Agreement Tracking Pattern
+- **Context**: Added `RunItTwiceState` type with:
+  - `eligible: boolean` - whether run-it-twice is available
+  - `playerAgreements: Record<string, boolean>` - per-player acceptance
+  - `agreed: boolean` - final decision (both must accept)
+  - `timeoutAt: number` - timestamp for 10s timeout
+- **Event**: `ACCEPT_RUN_IT_TWICE` with `playerId` and `accept: boolean`
+- **Action**: `recordRunItTwiceResponse` updates agreements and checks if all agreed
+- **Timeout**: 10s delay via XState `after` block, defaults to NO if not all responded
+
+### Showdown Modification (NOT IMPLEMENTED)
+- **Note**: Current implementation does NOT deal cards twice
+- **Reason**: Complexity of tracking two separate boards and winner evaluation per board
+- **Current behavior**: Uses standard `evaluateShowdown` action regardless of agreement
+- **TODO**: Implement `evaluateRunItTwiceShowdown` action to:
+  - Deal remaining community cards twice (two separate decks)
+  - Evaluate winners for each board independently
+  - Pass board-specific winners to `distributeHalfPots`
+
+### Half-Pot Distribution Implementation
+- **File**: `apps/server/src/poker/potManager.ts` (added `distributeHalfPots` method)
+- **Pattern**: Split each pot in half, distribute each half independently
+- **Logic**:
+  - Divide pot amount by 2 using `divideChips(pot.amount, 2)`
+  - First half gets remainder (odd chip)
+  - Each half distributed to winners with standard odd-chip rules
+  - Odd chips per half-pot awarded clockwise from dealer
+- **Integration**: `distributePots` action checks `context.runItTwiceState.agreed` and calls `distributeHalfPots` if true
+
+### Socket Integration
+- **File**: `apps/server/src/poker/pokerRoomManager.ts` (added `acceptRunItTwice` method)
+- **Event**: `poker:acceptRunItTwice` with `{ accepted: boolean }` payload
+- **Handler**: Sends `ACCEPT_RUN_IT_TWICE` event to poker machine actor
+- **Wiring**: Registered in `apps/server/src/index.ts` alongside other poker action handlers
+
+### State Machine States Added
+1. **checkRunItTwice**: Intermediate state that checks eligibility guard
+   - If eligible → `runItTwiceDecision` (with `initializeRunItTwice` action)
+   - If not eligible → `showdown` (bypass)
+2. **runItTwiceDecision**: Wait for player agreements
+   - Listens for `ACCEPT_RUN_IT_TWICE` events
+   - Transitions to `showdown` when `isRunItTwiceAgreed` guard passes
+   - Auto-transitions after 10s timeout with `finalizeRunItTwiceDecision` action
+
+### Design Decisions
+1. **Two-state pattern**: Separate `checkRunItTwice` and `runItTwiceDecision` for clean eligibility check
+2. **Guard-driven transitions**: `isRunItTwiceEligible` and `isRunItTwiceAgreed` guards control flow
+3. **Timeout via XState `after`**: 10s delay built into state machine (not external timer)
+4. **Reset on showdown**: `resetRunItTwice` action in showdown entry clears state for next hand
+5. **Half-pot distribution**: Separate method in PotManager to avoid duplicating distribution logic
+
+### Verification Results
+- ✅ `lsp_diagnostics` clean for:
+  - `apps/server/src/poker/pokerMachine.ts`
+  - `apps/server/src/poker/potManager.ts`
+  - `apps/server/src/poker/pokerRoomManager.ts`
+  - `apps/server/src/index.ts`
+- ✅ `npm run build` (root) completed successfully with 0 TypeScript errors
+- ✅ All workspaces (shared, server, client) compiled without errors
+
+### Known Limitations
+- **Showdown logic NOT modified**: Current implementation does not deal cards twice
+- **Single board evaluation**: Winners determined from single board, not two separate boards
+- **Half-pot distribution works**: But receives same winners for both halves (not board-specific)
+- **TODO for full implementation**: Add `evaluateRunItTwiceShowdown` action to deal and evaluate two boards
+
+### Next Steps
+- Task 19+ can now use run-it-twice variant (with limitation noted above)
+- Full run-it-twice requires implementing dual-board evaluation in showdown
+- Client UI needs to display run-it-twice decision prompt and show both boards
+

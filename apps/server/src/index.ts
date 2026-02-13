@@ -51,6 +51,7 @@ io.on('connection', (socket) => {
   socket.on('poker:call', ((data?: { sequenceNumber?: number }) => pokerRoomManager.handleAction(socket, 'call', data)) as () => void);
   socket.on('poker:allIn', ((data?: { sequenceNumber?: number }) => pokerRoomManager.handleAction(socket, 'allIn', data)) as () => void);
   socket.on('poker:raise', (data) => pokerRoomManager.handleAction(socket, 'raise', data));
+  socket.on('poker:acceptRunItTwice', (data) => pokerRoomManager.acceptRunItTwice(socket, data));
 
   socket.on('game:setCategory', (data) => roomManager.handleGameEvent(socket, 'SET_CATEGORY', data));
   socket.on('game:setTimerDuration', (data) => roomManager.handleGameEvent(socket, 'SET_TIMER_DURATION', data));
