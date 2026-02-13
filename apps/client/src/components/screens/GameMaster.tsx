@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useState } from 'react'
 import { motion } from 'motion/react'
 import type { Role } from '@undercover/shared'
 import { SocketContext } from '../../App'
+import { WordPeek } from '../ui/WordPeek'
 
 const ROLE_LABELS: Record<Role, string> = {
   civil: 'Civil',
@@ -155,6 +156,7 @@ export function GameMaster() {
           </div>
         )}
       </div>
+      <WordPeek />
     </motion.div>
   )
 }

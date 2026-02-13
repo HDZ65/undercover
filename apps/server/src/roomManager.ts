@@ -336,6 +336,11 @@ export class RoomManager {
           return;
         }
         room.actor.send({ type: 'RESET_GAME' });
+        // Re-add all room players so the machine transitions from menu → lobby
+        const allPlayers = [...room.players.values()].map((p) => this.toMachinePlayer(p));
+        room.actor.send({ type: 'START_GAME', players: allPlayers });
+        room.lastEliminatedPlayerId = null;
+        return;
       }
     }
   }

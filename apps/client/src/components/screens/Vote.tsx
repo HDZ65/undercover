@@ -1,6 +1,7 @@
 import { useContext, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { SocketContext } from '../../App'
+import { WordPeek } from '../ui/WordPeek'
 
 export function Vote() {
   const socket = useContext(SocketContext)
@@ -157,6 +158,8 @@ export function Vote() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <WordPeek />
     </motion.div>
   )
 }
