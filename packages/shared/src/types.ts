@@ -1,6 +1,6 @@
 export type Role = 'civil' | 'undercover' | 'mrwhite';
 
-export type WordCategory = 'facile' | 'expert' | 'adulte' | 'gastronomie' | 'voyage';
+export type WordCategory = 'facile' | 'expert' | 'adulte' | 'gastronomie' | 'voyage' | 'aleatoire';
 
 export interface WordPair {
   civil: string;
@@ -13,6 +13,11 @@ export interface Player {
   role?: Role;
   isEliminated?: boolean;
   avatar?: string;
+}
+
+export interface PlayerScore {
+  playerId: string;
+  score: number;
 }
 
 export type GamePhase =

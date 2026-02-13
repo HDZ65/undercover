@@ -1,5 +1,5 @@
 import { assign, setup } from 'xstate'
-import { wordDatabase } from './words'
+import { wordDatabase, type RealWordCategory } from './words'
 import type { Player, Role, WordCategory, WordPair } from '@undercover/shared'
 import { distributeRoles, getRoleCounts } from './roles'
 
@@ -23,6 +23,8 @@ interface UndercoverMachineContext {
   voteResolution: VoteResolution
   readyPlayers: string[]
   hideRoles: boolean
+  scores: Record<string, number>
+  usedWordPairIndices: Record<string, number[]>
 }
 
 type UndercoverMachineEvent =
@@ -42,6 +44,7 @@ type UndercoverMachineEvent =
   | { type: 'CAST_MRWHITE_VOTE'; voterId: string; accepted: boolean }
   | { type: 'RESOLVE_MRWHITE_VOTE' }
   | { type: 'SET_HIDE_ROLES'; hideRoles: boolean }
+  | { type: 'CONTINUE_GAME' }
   | { type: 'RESET_GAME' }
 
 const initialContext: UndercoverMachineContext = {
@@ -62,6 +65,8 @@ const initialContext: UndercoverMachineContext = {
   voteResolution: 'pending',
   readyPlayers: [],
   hideRoles: false,
+  scores: {},
+  usedWordPairIndices: {},
 }
 
 const getCurrentVoteTargets = (context: UndercoverMachineContext): string[] => {
@@ -269,18 +274,42 @@ export const gameMachine = setup({
     }),
 
     assignWordPair: assign(({ context }) => {
-      const words = wordDatabase[context.category]
+      const realCategories = Object.keys(wordDatabase) as RealWordCategory[]
+      const resolvedCategory: RealWordCategory = context.category === 'aleatoire'
+        ? realCategories[Math.floor(Math.random() * realCategories.length)]
+        : context.category as RealWordCategory
+
+      const words = wordDatabase[resolvedCategory]
 
       if (!words || words.length === 0) {
         return {
           wordPair: null,
+          usedWordPairIndices: context.usedWordPairIndices,
         }
       }
 
-      const randomIndex = Math.floor(Math.random() * words.length)
+      const usedIndices = context.usedWordPairIndices[resolvedCategory] ?? []
+
+      // Find available (unused) indices
+      let availableIndices = words.map((_, index) => index).filter((index) => !usedIndices.includes(index))
+
+      // If all pairs have been used, reset the used list
+      if (availableIndices.length === 0) {
+        availableIndices = words.map((_, index) => index)
+      }
+
+      // Pick a random available index
+      const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)]
+      const newUsedIndices = availableIndices.length === words.length
+        ? [randomIndex]
+        : [...usedIndices, randomIndex]
 
       return {
         wordPair: words[randomIndex] ?? null,
+        usedWordPairIndices: {
+          ...context.usedWordPairIndices,
+          [resolvedCategory]: newUsedIndices,
+        },
       }
     }),
 
@@ -420,6 +449,35 @@ export const gameMachine = setup({
       winner: getWinner(context),
     })),
 
+    computeScores: assign(({ context }) => {
+      const winner = getWinner(context)
+      if (!winner) {
+        return { scores: context.scores }
+      }
+
+      const updatedScores = { ...context.scores }
+
+      for (const player of context.players) {
+        if (!player.role) {
+          continue
+        }
+
+        if (!updatedScores[player.id]) {
+          updatedScores[player.id] = 0
+        }
+
+        if (winner === 'civil' && player.role === 'civil' && !player.isEliminated) {
+          updatedScores[player.id] += 2
+        } else if (winner === 'undercover' && player.role === 'undercover' && !player.isEliminated) {
+          updatedScores[player.id] += 3
+        } else if (winner === 'mrwhite' && player.role === 'mrwhite') {
+          updatedScores[player.id] += 4
+        }
+      }
+
+      return { scores: updatedScores }
+    }),
+
     recordMrWhiteGuess: assign(({ event }) => {
       if (event.type !== 'SUBMIT_MRWHITE_GUESS') {
         return {}
@@ -533,8 +591,10 @@ export const gameMachine = setup({
           : context.currentSpeakerIndex % context.alivePlayers.length,
     })),
 
-    resetGame: assign(() => ({
+    resetGame: assign(({ context }) => ({
       ...initialContext,
+      scores: context.scores,
+      usedWordPairIndices: context.usedWordPairIndices,
     })),
   },
 }).createMachine({
@@ -662,16 +722,16 @@ export const gameMachine = setup({
 
     elimination: {
       entry: 'eliminatePlayer',
-      always: [
-        {
-          guard: 'isMrWhiteEliminated',
-          target: 'mrWhiteGuess',
-        },
-        {
-          target: 'checkGameEnd',
-        },
-      ],
       on: {
+        CONTINUE_GAME: [
+          {
+            guard: 'isMrWhiteEliminated',
+            target: 'mrWhiteGuess',
+          },
+          {
+            target: 'checkGameEnd',
+          },
+        ],
         RESET_GAME: {
           target: 'menu',
           actions: 'resetGame',
@@ -715,12 +775,12 @@ export const gameMachine = setup({
         {
           guard: 'mrWhiteGuessCorrect',
           target: 'victory',
-          actions: 'setWinner',
+          actions: ['setWinner', 'computeScores'],
         },
         {
           guard: 'gameOver',
           target: 'victory',
-          actions: 'setWinner',
+          actions: ['setWinner', 'computeScores'],
         },
         {
           target: 'gameRound.discussion',

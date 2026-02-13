@@ -1,4 +1,4 @@
-import type { Player, WordCategory, GamePhase, Role } from './types';
+import type { Player, WordCategory, GamePhase, Role, PlayerScore } from './types';
 
 // --- Client -> Server events ---
 export interface ClientToServerEvents {
@@ -16,6 +16,7 @@ export interface ClientToServerEvents {
   'game:castVote': (data: { targetId: string }) => void;
   'game:submitMrWhiteGuess': (data: { guess: string }) => void;
   'game:castMrWhiteVote': (data: { accepted: boolean }) => void;
+  'game:continueGame': () => void;
   'game:resetGame': () => void;
 }
 
@@ -41,6 +42,7 @@ export interface PublicGameState {
   hostId: string;
   readyPlayers: string[];
   hideRoles: boolean;
+  scores: PlayerScore[];
 }
 
 /** Player info visible to everyone (no role) */

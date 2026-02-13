@@ -6,6 +6,7 @@ import type { WordCategory } from '@undercover/shared'
 import { SocketContext } from '../../App'
 
 const CATEGORIES: { value: WordCategory; label: string }[] = [
+  { value: 'aleatoire', label: 'Aléatoire' },
   { value: 'facile', label: 'Facile' },
   { value: 'expert', label: 'Expert' },
   { value: 'adulte', label: 'Adulte' },

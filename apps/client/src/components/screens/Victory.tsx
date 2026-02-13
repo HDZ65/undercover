@@ -80,22 +80,33 @@ export function Victory() {
               return null
             }
 
+            const playerScore = socket.publicState?.scores?.find((s) => s.playerId === player.id)
+
             return (
               <div
                 key={player.id}
                 className="rounded-lg p-4 border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 flex items-center justify-between"
               >
-                <div>
-                  <p className="font-semibold text-slate-900 dark:text-slate-100">{player.name}</p>
-                  {player.isEliminated && (
-                    <p className="text-xs text-rose-600 dark:text-rose-400">Elimine</p>
-                  )}
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100">{player.name}</p>
+                    {player.isEliminated && (
+                      <p className="text-xs text-rose-600 dark:text-rose-400">Éliminé</p>
+                    )}
+                  </div>
                 </div>
-                <span
-                  className={`px-3 py-1 rounded-full text-sm font-semibold text-white bg-gradient-to-r ${ROLE_COLORS[role]}`}
-                >
-                  {ROLE_LABELS[role]}
-                </span>
+                <div className="flex items-center gap-3">
+                  {playerScore && playerScore.score > 0 && (
+                    <span className="px-2 py-1 rounded-lg text-sm font-bold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                      {playerScore.score} pts
+                    </span>
+                  )}
+                  <span
+                    className={`px-3 py-1 rounded-full text-sm font-semibold text-white bg-gradient-to-r ${ROLE_COLORS[role]}`}
+                  >
+                    {ROLE_LABELS[role]}
+                  </span>
+                </div>
               </div>
             )
           })}

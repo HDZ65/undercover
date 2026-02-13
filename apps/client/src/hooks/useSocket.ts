@@ -16,7 +16,7 @@ const STORAGE_KEY_ROOM = 'undercover-room-code'
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
-const CATEGORIES: WordCategory[] = ['facile', 'expert', 'adulte', 'gastronomie', 'voyage']
+const CATEGORIES: WordCategory[] = ['facile', 'expert', 'adulte', 'gastronomie', 'voyage', 'aleatoire']
 
 interface UseSocketReturn {
   connected: boolean
@@ -40,6 +40,7 @@ interface UseSocketReturn {
   castVote: (targetId: string) => void
   submitMrWhiteGuess: (guess: string) => void
   castMrWhiteVote: (accepted: boolean) => void
+  continueGame: () => void
   resetGame: () => void
 }
 
@@ -269,6 +270,10 @@ export function useSocket(): UseSocketReturn {
     [emit],
   )
 
+  const continueGame = useCallback(() => {
+    emit('game:continueGame')
+  }, [emit])
+
   const resetGame = useCallback(() => {
     emit('game:resetGame')
   }, [emit])
@@ -298,12 +303,14 @@ export function useSocket(): UseSocketReturn {
       castVote,
       submitMrWhiteGuess,
       castMrWhiteVote,
+      continueGame,
       resetGame,
     }),
     [
       castMrWhiteVote,
       castVote,
       connected,
+      continueGame,
       createRoom,
       error,
       joinRoom,

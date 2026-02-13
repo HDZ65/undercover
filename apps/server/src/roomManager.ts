@@ -3,6 +3,7 @@ import type {
   ClientToServerEvents,
   GamePhase,
   Player,
+  PlayerScore,
   PrivatePlayerState,
   PublicGameState,
   PublicPlayer,
@@ -29,6 +30,7 @@ type ForwardGameEvent =
   | 'CAST_VOTE'
   | 'SUBMIT_MRWHITE_GUESS'
   | 'CAST_MRWHITE_VOTE'
+  | 'CONTINUE_GAME'
   | 'RESET_GAME';
 
 interface RoomPlayer {
@@ -302,6 +304,13 @@ export class RoomManager {
         room.actor.send({ type: 'RESOLVE_MRWHITE_VOTE' });
         return;
       }
+      case 'CONTINUE_GAME': {
+        if (!this.isHost(room, player.id)) {
+          return;
+        }
+        room.actor.send({ type: 'CONTINUE_GAME' });
+        return;
+      }
       case 'RESET_GAME': {
         if (!this.isHost(room, player.id)) {
           return;
@@ -468,6 +477,7 @@ export class RoomManager {
       hostId: room.hostId,
       readyPlayers: [...context.readyPlayers],
       hideRoles: context.hideRoles,
+      scores: Object.entries(context.scores).map(([playerId, score]) => ({ playerId, score })),
     };
   }
 

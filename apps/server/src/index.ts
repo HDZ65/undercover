@@ -41,6 +41,7 @@ io.on('connection', (socket) => {
   socket.on('game:castVote', (data) => roomManager.handleGameEvent(socket, 'CAST_VOTE', data));
   socket.on('game:submitMrWhiteGuess', (data) => roomManager.handleGameEvent(socket, 'SUBMIT_MRWHITE_GUESS', data));
   socket.on('game:castMrWhiteVote', (data) => roomManager.handleGameEvent(socket, 'CAST_MRWHITE_VOTE', data));
+  socket.on('game:continueGame', () => roomManager.handleGameEvent(socket, 'CONTINUE_GAME'));
   socket.on('game:resetGame', () => roomManager.handleGameEvent(socket, 'RESET_GAME'));
 
   socket.on('disconnect', () => roomManager.handleDisconnect(socket));
