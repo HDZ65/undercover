@@ -674,7 +674,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 6. Integer Chip Arithmetic Module [TDD]
+- [x] 6. Integer Chip Arithmetic Module [TDD]
 
   **What to do**:
   - **RED**: Write tests in `apps/server/src/poker/__tests__/chips.test.ts`:
