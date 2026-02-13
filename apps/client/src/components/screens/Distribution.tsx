@@ -25,14 +25,18 @@ export function Distribution() {
   const role = socket.privateState.role
   const hideRoles = socket.publicState.hideRoles
   const isReady = socket.publicState.readyPlayers.includes(socket.privateState.playerId)
+  const isAlive = socket.publicState.alivePlayers.includes(socket.privateState.playerId)
   const readyCount = socket.publicState.readyPlayers.length
-  const totalPlayers = socket.publicState.players.length
+  const totalAlive = socket.publicState.alivePlayers.length
+  const currentRound = socket.publicState.currentRound
 
   // In hideRoles mode: no role shown, only the word (or "Pas de mot" for Mr. White)
   // The player doesn't know if they're Civil, Undercover, or Mr. White
   if (!hideRoles && !role) {
     return null
   }
+
+  const isReminderRound = currentRound > 1
 
   const word = socket.privateState.word
   const hasWord = typeof word === 'string' && word.length > 0
@@ -51,7 +55,7 @@ export function Distribution() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          {hideRoles ? 'Votre mot secret' : 'Votre role secret'}
+          {isReminderRound ? 'Rappel de votre mot' : hideRoles ? 'Votre mot secret' : 'Votre role secret'}
         </motion.h1>
 
         {hideRoles ? (
@@ -93,26 +97,32 @@ export function Distribution() {
 
         <div className="space-y-3">
           <p className="text-slate-600 dark:text-slate-400 font-medium">
-            {readyCount}/{totalPlayers} joueurs prets
+            {readyCount}/{totalAlive} joueurs prets
           </p>
           <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
             <motion.div
               className="h-full bg-gradient-to-r from-blue-600 to-purple-600"
               initial={{ width: 0 }}
-              animate={{ width: `${totalPlayers ? (readyCount / totalPlayers) * 100 : 0}%` }}
+              animate={{ width: `${totalAlive ? (readyCount / totalAlive) * 100 : 0}%` }}
             />
           </div>
         </div>
 
-        <motion.button
-          onClick={socket.markReady}
-          disabled={isReady}
-          className="w-full min-h-[56px] px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-500 dark:to-purple-500 text-white font-bold text-lg rounded-lg shadow-lg disabled:opacity-50"
-          whileHover={{ scale: isReady ? 1 : 1.01 }}
-          whileTap={{ scale: isReady ? 1 : 0.99 }}
-        >
-          {isReady ? 'Pret ✓' : "J'ai memorise"}
-        </motion.button>
+        {isAlive ? (
+          <motion.button
+            onClick={socket.markReady}
+            disabled={isReady}
+            className="w-full min-h-[56px] px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-500 dark:to-purple-500 text-white font-bold text-lg rounded-lg shadow-lg disabled:opacity-50"
+            whileHover={{ scale: isReady ? 1 : 1.01 }}
+            whileTap={{ scale: isReady ? 1 : 0.99 }}
+          >
+            {isReady ? 'Pret ✓' : "J'ai memorise"}
+          </motion.button>
+        ) : (
+          <p className="text-slate-500 dark:text-slate-400 font-medium">
+            Vous avez ete elimine. En attente des autres joueurs...
+          </p>
+        )}
       </div>
     </motion.div>
   )

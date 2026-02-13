@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto'
 import { assign, setup } from 'xstate'
 import { wordDatabase, type RealWordCategory } from './words'
 import type { Player, Role, WordCategory, WordPair } from '@undercover/shared'
@@ -83,13 +84,17 @@ const getCurrentVoteTargets = (context: UndercoverMachineContext): string[] => {
   return context.alivePlayers
 }
 
+const cryptoRandom = (max: number): number => {
+  if (max <= 0) return 0
+  return randomInt(max)
+}
+
 const pickRandomPlayerId = (playerIds: string[]): string | null => {
   if (playerIds.length === 0) {
     return null
   }
 
-  const randomIndex = Math.floor(Math.random() * playerIds.length)
-  return playerIds[randomIndex]
+  return playerIds[cryptoRandom(playerIds.length)]
 }
 
 const getWinner = (context: UndercoverMachineContext): Role | null => {
@@ -284,7 +289,7 @@ export const gameMachine = setup({
     assignWordPair: assign(({ context }) => {
       const realCategories = Object.keys(wordDatabase) as RealWordCategory[]
       const resolvedCategory: RealWordCategory = context.category === 'aleatoire'
-        ? realCategories[Math.floor(Math.random() * realCategories.length)]
+        ? realCategories[cryptoRandom(realCategories.length)]
         : context.category as RealWordCategory
 
       const words = wordDatabase[resolvedCategory]
@@ -301,13 +306,18 @@ export const gameMachine = setup({
       // Find available (unused) indices
       let availableIndices = words.map((_, index) => index).filter((index) => !usedIndices.includes(index))
 
-      // If all pairs have been used, reset the used list
+      // If all pairs have been used, reset and shuffle
       if (availableIndices.length === 0) {
         availableIndices = words.map((_, index) => index)
       }
 
-      // Pick a random available index
-      const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)]
+      // Fisher-Yates shuffle for uniform distribution
+      for (let i = availableIndices.length - 1; i > 0; i--) {
+        const j = cryptoRandom(i + 1)
+        ;[availableIndices[i], availableIndices[j]] = [availableIndices[j], availableIndices[i]]
+      }
+
+      const randomIndex = availableIndices[0]
       const newUsedIndices = availableIndices.length === words.length
         ? [randomIndex]
         : [...usedIndices, randomIndex]
@@ -804,7 +814,7 @@ export const gameMachine = setup({
         revealed: {
           on: {
             CONTINUE_GAME: {
-              target: '#undercoverGame.gameRound.discussion',
+              target: '#undercoverGame.roleDistribution',
               actions: 'prepareNextRound',
             },
           },
@@ -879,7 +889,7 @@ export const gameMachine = setup({
           actions: ['setWinner', 'computeScores'],
         },
         {
-          target: 'gameRound.discussion',
+          target: 'roleDistribution',
           actions: 'prepareNextRound',
         },
       ],
