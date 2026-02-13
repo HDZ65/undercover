@@ -10,16 +10,17 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@pokertools/evaluator": "^1.0.1",
     "@undercover/shared": "*",
+    "cors": "^2.8.5",
     "express": "^5.1.0",
     "socket.io": "^4.8.0",
-    "xstate": "^5.27.0",
-    "cors": "^2.8.5",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "xstate": "^5.27.0"
   },
   "devDependencies": {
-    "@types/express": "^5.0.0",
     "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
     "typescript": "~5.9.3"
   }
 }

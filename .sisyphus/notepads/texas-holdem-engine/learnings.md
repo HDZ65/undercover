@@ -197,3 +197,40 @@ Convention and pattern discoveries from implementation.
 
 ### Refactor Note
 - Random index selection now uses rejection sampling over uint32 values to avoid modulo bias while keeping CSPRNG source (`crypto.getRandomValues`).
+
+
+## Wave 2: Hand Evaluator Wrapper with Library Abstraction TDD (2026-02-13)
+
+### TDD Flow
+- **RED first**: Added `apps/server/src/poker/__tests__/handEvaluator.test.ts` with 20 tests before implementation; first run failed because `../handEvaluator` did not exist.
+- **GREEN**: Implemented `apps/server/src/poker/handEvaluator.ts` around `@pokertools/evaluator`.
+- **Verification**: `npx vitest run src/poker/__tests__/handEvaluator.test.ts` passes with 20/20 tests.
+
+### Wrapper and Abstraction Pattern
+- Kept evaluator library behind a local provider object (`HandEvaluationProvider`) so consumers only use project functions/types.
+- Public API exports only shared-domain types/functions:
+  - `evaluateHand(cards: Card[]): EvaluatedHand`
+  - `compareHands(handA, handB): -1 | 0 | 1`
+  - `findWinners(playerHands, communityCards)` grouped in ordered tiers with tie handling
+  - `describeHand(hand, 'fr' | 'en')`
+- No `@pokertools/evaluator` types leak outside `handEvaluator.ts`.
+
+### Evaluation Details
+- Card conversion maps shared card model to evaluator codes (`10 -> T`, suits to `s/h/d/c`).
+- For 5-7 cards, best 5-card hand is selected by enumerating all 5-card combinations and choosing lowest evaluator score.
+- Royal flush is promoted from evaluator straight flush category by explicit `10-J-Q-K-A` detection.
+- Comparable hand value uses transformed evaluator score (`7463 - score`) so higher is stronger in app-level comparisons.
+
+### Localization Conventions
+- French descriptions implemented (examples verified by tests):
+  - `Paire d'As`
+  - `Brelan de Rois`
+  - `Quinte Flush Royale`
+- English descriptions implemented in parallel (`Pair of Aces`, etc.) for parity.
+
+### Verification Results
+- ✅ `npx vitest run src/poker/__tests__/handEvaluator.test.ts` -> 20 passed, 0 failed
+- ✅ `npm run build --workspace=apps/server` -> TypeScript compile success
+- ✅ LSP diagnostics clean for:
+  - `apps/server/src/poker/handEvaluator.ts`
+  - `apps/server/src/poker/__tests__/handEvaluator.test.ts`
