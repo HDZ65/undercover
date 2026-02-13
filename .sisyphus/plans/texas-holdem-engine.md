@@ -588,7 +588,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 5. Hand Evaluator Wrapper [TDD]
+- [x] 5. Hand Evaluator Wrapper [TDD]
 
   **What to do**:
   - **RED**: Write tests first in `apps/server/src/poker/__tests__/handEvaluator.test.ts`:
