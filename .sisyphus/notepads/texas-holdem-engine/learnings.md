@@ -262,3 +262,31 @@ Convention and pattern discoveries from implementation.
 - ✅ LSP diagnostics clean for:
   - `apps/server/src/poker/chips.ts`
   - `apps/server/src/poker/__tests__/chips.test.ts`
+
+
+## Wave 3: sql.js Persistence Layer for Poker (2026-02-13)
+
+### Storage and Initialization Pattern
+- Added `apps/server/src/poker/db.ts` with async-first persistence API around sql.js WASM.
+- `initDatabase()` now ensures `apps/server/data/` exists, loads `sql.js`, opens existing `poker.db` if present, creates schema, and starts periodic persistence.
+- WASM binary resolution uses `createRequire(import.meta.url)` + `require.resolve('sql.js/dist/sql-wasm.wasm')` to work in Node/tsx without native sqlite bindings.
+
+### Schema Conventions
+- Created tables with `CREATE TABLE IF NOT EXISTS` for `players`, `hand_history`, and `table_sessions`.
+- All chip amounts are persisted as `INTEGER` (`players.chip_balance`) to preserve centime precision and avoid floats.
+- Hand history stores full JSON payload in `hand_history.data` and keeps sortable metadata (`hand_number`, `timestamp`, `table_id`).
+
+### Persistence Strategy
+- Implemented a dirty-flag + promise queue to serialize `Database.export()` writes and avoid overlapping file writes.
+- Added periodic save every 30s via `setInterval` (`unref` enabled) and immediate flush after `saveHandHistory()`.
+- Initial schema creation is persisted immediately so `apps/server/data/poker.db` is created on first init.
+
+### API Behavior Notes
+- `getOrCreatePlayer()` inserts default `chip_balance` of `10000` centimes and updates `last_seen`/name/IP on reconnect.
+- `updatePlayerBalance()` enforces integer deltas and rejects negative resulting balances.
+- `getHandHistory(playerId, limit)` returns most recent matching entries by parsing JSON rows and filtering on `entry.players` membership.
+
+### Verification Results
+- ✅ `npm run build --workspace=apps/server` completed with 0 TypeScript errors.
+- ✅ Runtime smoke test via `node --import tsx --eval ...` created player, updated balance by integer delta, saved hand history, and returned integer balance.
+- ✅ `apps/server/data/poker.db` created on disk.
