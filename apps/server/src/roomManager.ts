@@ -7,6 +7,7 @@ import type {
   PrivatePlayerState,
   PublicGameState,
   PublicPlayer,
+  PublicRoomInfo,
   Role,
   ServerToClientEvents,
   WordCategory,
@@ -48,6 +49,7 @@ interface Room {
   actor: GameActor;
   players: Map<string, RoomPlayer>;
   hostId: string;
+  isPublic: boolean;
   disconnectTimers: Map<string, NodeJS.Timeout>;
   emptyRoomTimer: NodeJS.Timeout | null;
   lastEliminatedPlayerId: string | null;
@@ -62,7 +64,7 @@ export class RoomManager {
 
   constructor(private readonly io: Server<ClientToServerEvents, ServerToClientEvents>) {}
 
-  createRoom(socket: ServerSocket, data: { playerName: string }): void {
+  createRoom(socket: ServerSocket, data: { playerName: string; isPublic?: boolean }): void {
     this.leaveRoom(socket);
 
     const roomCode = this.generateRoomCode();
@@ -76,6 +78,7 @@ export class RoomManager {
       actor,
       players: new Map([[player.id, player]]),
       hostId: player.id,
+      isPublic: data.isPublic ?? false,
       disconnectTimers: new Map(),
       emptyRoomTimer: null,
       lastEliminatedPlayerId: null,
@@ -343,6 +346,29 @@ export class RoomManager {
         return;
       }
     }
+  }
+
+  getPublicRooms(): PublicRoomInfo[] {
+    const result: PublicRoomInfo[] = [];
+
+    for (const room of this.rooms.values()) {
+      if (!room.isPublic) continue;
+
+      const snapshot = room.actor.getSnapshot();
+      if (!snapshot.matches('lobby') && !snapshot.matches('menu')) continue;
+      if (room.players.size >= 20) continue;
+
+      const host = room.players.get(room.hostId);
+
+      result.push({
+        code: room.code,
+        hostName: host?.name ?? 'Inconnu',
+        playerCount: room.players.size,
+        maxPlayers: 20,
+      });
+    }
+
+    return result;
   }
 
   private resolveRoomAndPlayer(socket: ServerSocket): { room: Room; player: RoomPlayer } | null {

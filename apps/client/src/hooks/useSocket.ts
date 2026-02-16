@@ -6,6 +6,7 @@ import type {
   ServerToClientEvents,
   PublicGameState,
   PrivatePlayerState,
+  PublicRoomInfo,
   GamePhase,
   WordCategory,
 } from '@undercover/shared'
@@ -23,13 +24,15 @@ interface UseSocketReturn {
   error: string | null
   publicState: PublicGameState | null
   privateState: PrivatePlayerState | null
+  publicRooms: PublicRoomInfo[]
   phase: GamePhase | null
   playerId: string | null
   roomCode: string | null
   isHost: boolean
-  createRoom: (playerName: string) => void
+  createRoom: (playerName: string, isPublic?: boolean) => void
   joinRoom: (roomCode: string, playerName: string) => void
   leaveRoom: () => void
+  listRooms: () => void
   setCategory: (category: string) => void
   setTimerDuration: (duration: number) => void
   setHideRoles: (hideRoles: boolean) => void
@@ -56,6 +59,7 @@ export function useSocket(): UseSocketReturn {
   const [error, setError] = useState<string | null>(null)
   const [publicState, setPublicState] = useState<PublicGameState | null>(null)
   const [privateState, setPrivateState] = useState<PrivatePlayerState | null>(null)
+  const [publicRooms, setPublicRooms] = useState<PublicRoomInfo[]>([])
   const [playerId, setPlayerId] = useState<string | null>(null)
   const [playerToken, setPlayerToken] = useLocalStorage<string | null>(STORAGE_KEY_TOKEN, null)
   const [roomCode, setRoomCode] = useLocalStorage<string | null>(STORAGE_KEY_ROOM, null)
@@ -159,6 +163,10 @@ export function useSocket(): UseSocketReturn {
       })
     })
 
+    socket.on('room:list', (data) => {
+      setPublicRooms(data.rooms)
+    })
+
     return () => {
       socket.removeAllListeners()
       socket.disconnect()
@@ -174,7 +182,7 @@ export function useSocket(): UseSocketReturn {
   )
 
   const createRoom = useCallback(
-    (playerName: string) => {
+    (playerName: string, isPublic?: boolean) => {
       const normalized = playerName.trim()
       if (!normalized) {
         setError('Le nom du joueur est requis.')
@@ -182,10 +190,14 @@ export function useSocket(): UseSocketReturn {
       }
 
       setError(null)
-      emit('room:create', { playerName: normalized })
+      emit('room:create', { playerName: normalized, isPublic })
     },
     [emit],
   )
+
+  const listRooms = useCallback(() => {
+    emit('room:list')
+  }, [emit])
 
   const joinRoom = useCallback(
     (nextRoomCode: string, playerName: string) => {
@@ -300,6 +312,7 @@ export function useSocket(): UseSocketReturn {
       error,
       publicState,
       privateState,
+      publicRooms,
       phase,
       playerId,
       roomCode,
@@ -307,6 +320,7 @@ export function useSocket(): UseSocketReturn {
       createRoom,
       joinRoom,
       leaveRoom,
+      listRooms,
       setCategory,
       setTimerDuration,
       setHideRoles,
@@ -332,11 +346,13 @@ export function useSocket(): UseSocketReturn {
       error,
       joinRoom,
       leaveRoom,
+      listRooms,
       markReady,
       nextSpeaker,
       phase,
       playerId,
       privateState,
+      publicRooms,
       publicState,
       resetGame,
       roomCode,

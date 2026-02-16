@@ -30,6 +30,9 @@ io.on('connection', (socket) => {
   socket.on('room:create', (data) => roomManager.createRoom(socket, data));
   socket.on('room:join', (data) => roomManager.joinRoom(socket, data));
   socket.on('room:leave', () => roomManager.leaveRoom(socket));
+  socket.on('room:list', () => {
+    socket.emit('room:list', { rooms: roomManager.getPublicRooms() });
+  });
 
   socket.on('game:setCategory', (data) => roomManager.handleGameEvent(socket, 'SET_CATEGORY', data));
   socket.on('game:setTimerDuration', (data) => roomManager.handleGameEvent(socket, 'SET_TIMER_DURATION', data));

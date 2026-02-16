@@ -4,11 +4,20 @@ import type {
   PokerServerToClientEvents,
 } from './poker/events';
 
+/** Info about a public room shown in the lobby browser */
+export interface PublicRoomInfo {
+  code: string;
+  hostName: string;
+  playerCount: number;
+  maxPlayers: number;
+}
+
 // --- Client -> Server events ---
 export interface ClientToServerEvents extends PokerClientToServerEvents {
-  'room:create': (data: { playerName: string }) => void;
+  'room:create': (data: { playerName: string; isPublic?: boolean }) => void;
   'room:join': (data: { roomCode: string; playerName: string; playerToken?: string }) => void;
   'room:leave': () => void;
+  'room:list': () => void;
 
   'game:setCategory': (data: { category: WordCategory }) => void;
   'game:setTimerDuration': (data: { duration: number }) => void;
@@ -80,6 +89,7 @@ export interface ServerToClientEvents extends PokerServerToClientEvents {
   'room:playerJoined': (data: { player: PublicPlayer }) => void;
   'room:playerLeft': (data: { playerId: string }) => void;
   'room:hostChanged': (data: { hostId: string }) => void;
+  'room:list': (data: { rooms: PublicRoomInfo[] }) => void;
 
   'game:state': (data: { publicState: PublicGameState; privateState: PrivatePlayerState }) => void;
   'game:eliminated': (data: { player: PublicPlayer & { role: Role } }) => void;
