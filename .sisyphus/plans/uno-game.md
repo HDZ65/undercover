@@ -541,7 +541,7 @@ Wave 5 (After Wave 4 — Integration & Deployment):
 
 ### Wave 2: Server Game Engine
 
-- [ ] 5. Deck module + scoring — `apps/uno-server/src/deck.ts` + `apps/uno-server/src/scoring.ts`
+- [x] 5. Deck module + scoring — `apps/uno-server/src/deck.ts` + `apps/uno-server/src/scoring.ts`
 
   **What to do**:
   - Create `apps/uno-server/src/deck.ts`:

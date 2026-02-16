@@ -151,3 +151,26 @@ apps/uno-client/
 
 ## Blockers Resolved
 - None - Task 3 had no dependencies (Task 1 @uno/shared declared but not required for scaffold)
+
+## Task 5: Deck Module + Scoring - COMPLETED ✓
+
+### Fisher-Yates Shuffle Implementation
+- Used `crypto.randomInt(0, i + 1)` for unbiased random
+- Verified no Math.random usage via grep
+
+### Card ID Generation Pattern
+- Colored cards: `{color}-{value}-{index}` (e.g., red-5-0, red-5-1)
+- Wild cards: `wild-{index}`, `wild-draw4-{index}`
+- All 108 IDs unique (verified)
+
+### Edge Cases Handled
+- Wild Draw Four: Buried and redrawn if selected as starting discard
+- Action cards (Skip/Reverse/DrawTwo): Stand as first discard, effect applies to first player
+- Wild: Normal start, first player chooses color
+
+### Validation Logic
+- Same color as currentColor -> Valid
+- Same value as discardTop -> Valid
+- Wild/WildDrawFour -> Always valid
+- Stacking: +2 on +2 only if pendingDrawStack > 0 AND stackDrawTwo enabled
+- Stacking: +4 on +4 only if pendingDrawStack > 0 AND stackDrawFour enabled
