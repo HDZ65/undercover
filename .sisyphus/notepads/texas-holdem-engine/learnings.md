@@ -961,3 +961,146 @@ Convention and pattern discoveries from implementation.
 - Task 23 (Chip Animations) can enhance bet slider and button animations
 - Task 25 (Client Hook) can wire real game state to BetControls
 - Task 26 (Full Integration) can connect BetControls to PokerTable layout
+
+## Wave 5: Chip Animations & Dealer Button (2026-02-16)
+
+### ChipAnimation Component
+- **File**: `apps/client/src/components/screens/poker/components/ChipAnimation.tsx`
+- **Pattern**: Framer Motion `motion.div` with initial/animate/transition props
+- **Key features**:
+  - `fromPosition` and `toPosition` as `{ x: number; y: number }` objects
+  - Uses `fixed` positioning for viewport-relative animations
+  - Opacity fade-out + scale reduction for natural chip disappearance
+  - `duration: 0.6` with `easeInOut` for smooth flight
+  - `onComplete` callback for chaining animations
+  - Chip visual: colored circle with border + amount label
+  - `ChipAnimationContainer` helper for managing multiple animations with completion tracking
+
+### DealerButton Component
+- **File**: `apps/client/src/components/screens/poker/components/DealerButton.tsx`
+- **Two variants**:
+  1. **DealerButton**: Fixed positioning, moves between seat positions via spring animation
+  2. **DealerButtonStatic**: Relative positioning for use within seat components
+- **Animation properties**:
+  - Spring transition: `stiffness: 100, damping: 15` for bouncy movement
+  - Glow effect: `boxShadow` animation with pulse (optional `isAnimating` prop)
+  - Gradient background: yellow-300 to yellow-500 with dark mode support
+  - Pulsing scale animation on static variant for visual feedback
+
+### Integration Points
+- Both components exported from `apps/client/src/components/screens/poker/index.ts`
+- Type exports included for TypeScript consumers
+- Ready for integration into PokerTable and PlayerSeat components
+- No breaking changes to existing components
+
+### Build Verification
+- ✅ `npm run build` → 0 errors, 0 warnings (chunk size warning is pre-existing)
+- ✅ TypeScript compilation successful across all workspaces
+- ✅ Vite build completed in 2.25s
+- ✅ All exports properly typed and accessible
+
+### Design Decisions
+- Used `fixed` positioning for ChipAnimation to work across viewport
+- Spring animation for dealer button feels more natural than linear easing
+- Gradient + border styling matches existing poker table aesthetic
+- Kept animations lightweight (no 3D transforms, no physics simulation)
+- Framer Motion already in project dependencies, no new packages needed
+
+### Next Steps
+- Integrate ChipAnimation into PokerTable for bet/pot animations
+- Replace static dealer button in PlayerSeat with DealerButtonStatic
+- Add chip animation triggers on action events (fold, call, raise, allIn)
+- Test animations with real game state transitions
+
+## Wave 5: Hand Strength Display & Hand History Viewer (2026-02-16)
+
+### HandStrengthDisplay Component
+- **File**: `apps/client/src/components/screens/poker/components/HandStrengthDisplay.tsx`
+- **Props interface**:
+  - `handStrength?: string` — Human-readable hand name (e.g., "Paire de Rois")
+  - `handRank?: HandRank` — Numeric rank (0-9) for color coding
+  - `draws?: string[]` — Array of draw descriptions (e.g., ["Tirage couleur"])
+  - `visible?: boolean` — Controls visibility (default true)
+- **Color mapping**: 10 hand ranks → distinct colors
+  - HIGH_CARD (0) → gray
+  - ONE_PAIR (1) → blue
+  - TWO_PAIR (2) → green
+  - THREE_OF_A_KIND (3) → teal
+  - STRAIGHT (4) → yellow
+  - FLUSH (5) → orange
+  - FULL_HOUSE (6) → red
+  - FOUR_OF_A_KIND (7) → purple
+  - STRAIGHT_FLUSH (8) → pink
+  - ROYAL_FLUSH (9) → gold/amber
+- **Visual features**:
+  - Animated strength bar (width = (rank+1)/10 * 100%)
+  - Draws listed with bullet points and staggered animation
+  - Framer Motion `initial/animate/transition` for smooth appearance
+  - Dark mode support via Tailwind dark: prefix
+  - Returns null if not visible or no handStrength provided
+
+### HandHistoryViewer Component
+- **File**: `apps/client/src/components/screens/poker/components/HandHistoryViewer.tsx`
+- **Props interface**:
+  - `history: HandHistoryEntry[]` — Array of completed hands
+  - `isOpen: boolean` — Modal visibility control
+  - `onClose: () => void` — Callback to close modal
+- **Modal structure**:
+  - Fixed overlay with semi-transparent backdrop
+  - Scrollable content area (max-h-[80vh])
+  - Header with title + close button
+  - Footer with close button
+- **Hand list features**:
+  - Summary row: Hand #, timestamp, winner(s), total winnings
+  - Expandable details with chevron animation
+  - Expanded view shows:
+    - Players with starting stacks
+    - Action summary (first 10 actions, +N more indicator)
+    - Winners with hand descriptions
+    - "Copy as Text" button
+- **Export functionality**:
+  - `exportAsText()` generates standard poker hand history format
+  - Format includes: header, players, actions grouped by phase, community cards, winners
+  - Copies to clipboard via `navigator.clipboard.writeText()`
+  - Shows alert on successful copy
+- **Formatting utilities**:
+  - `formatChips(centimes)` → "€10.50" format
+  - `formatTimestamp(unix)` → French locale date/time
+  - `getWinnerName()` → Single winner or "N winners"
+  - `getTotalWinnings()` → Sum of all winner amounts
+- **Animation details**:
+  - Modal entrance: scale 0.95 → 1, opacity 0 → 1
+  - Hand list items: staggered entrance with x-offset
+  - Expanded details: height animation from 0 to auto
+  - Chevron rotation on expand/collapse
+  - All transitions use Framer Motion AnimatePresence
+
+### Integration Points
+- Both components exported from `apps/client/src/components/screens/poker/index.ts`
+- HandStrengthDisplay: Intended for display in PokerTable or PlayerSeat
+- HandHistoryViewer: Modal overlay, triggered by button in PokerTable or sidebar
+- No breaking changes to existing components
+- Uses existing Framer Motion dependency (already in project)
+
+### Build Verification
+- ✅ `npm run build` → 0 errors, 0 warnings
+- ✅ TypeScript compilation successful across all workspaces
+- ✅ Vite build completed in 1.27s
+- ✅ All exports properly typed and accessible
+- ✅ No unused imports or type errors
+
+### Design Decisions
+- HandStrengthDisplay: Simple, focused component (no equity calculation)
+- Color gradient: Matches poker convention (weak → strong)
+- HandHistoryViewer: Modal pattern for non-intrusive display
+- Export format: Simple text (not PokerStars HH format) per spec
+- Draws as separate list: Allows showing both hand + draws simultaneously
+- Expandable history: Reduces visual clutter, shows details on demand
+- Clipboard export: No file download, just copy to clipboard for easy sharing
+
+### Next Steps
+- Integrate HandStrengthDisplay into PokerTable (display player's current hand)
+- Add HandHistoryViewer trigger button to PokerTable
+- Connect to real game state (handStrength from PokerPrivateState)
+- Test with actual HandHistoryEntry data from server
+- Consider adding filters (by player, by date range) to history viewer
