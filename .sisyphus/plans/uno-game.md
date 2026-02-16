@@ -661,7 +661,7 @@ Wave 5 (After Wave 4 — Integration & Deployment):
 
 ---
 
-- [ ] 6. XState game machine — `unoMachine.ts`, `unoActions.ts`, `unoGuards.ts`
+- [x] 6. XState game machine — `unoMachine.ts`, `unoActions.ts`, `unoGuards.ts`
 
   **What to do**:
   - Create `apps/uno-server/src/unoGuards.ts` with all guard functions:
