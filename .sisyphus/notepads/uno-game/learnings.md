@@ -199,3 +199,52 @@ apps/uno-client/
 - Timer state tracked server-side and rebroadcast on each tick
 - Emits `TURN_TIMEOUT` when timer reaches zero, then clears active interval
 - Interval is restarted automatically on turn changes and stopped outside turn phase
+
+## Task 8: Server Entry + Socket Wiring - COMPLETED ✓
+
+### Socket.io Event Wiring Pattern
+- Flat socket.on() handlers (no nesting)
+- room:* events call roomManager methods directly
+- game:* events forward to roomManager.handleGameEvent()
+- disconnect event calls roomManager.handleDisconnect()
+
+### CORS Configuration
+- Allowed origins: localhost:5174 (UNO client), localhost:3000 (dev), process.env.CLIENT_URL (prod)
+- credentials: true for cookie support
+- Filter out undefined values with `.filter(Boolean) as string[]`
+
+### Port Assignment
+- UNO server: 3002 (Undercover uses 3001)
+- Environment override: PORT env var with parseInt fallback
+- Default: 3002 if PORT not set
+
+### Event Handler Count
+- 3 room events: room:create, room:join, room:leave
+- 13 game events: startGame, playCard, drawCard, callUno, catchUno, chooseColor, challengeWD4, acceptWD4, setHouseRules, setTargetScore, setTurnTimer, continueNextRound, resetGame
+- 1 disconnect event
+- Total: 17 event handlers wired
+
+### Type Safety
+- Socket.io typed with `Server<ClientToServerEvents, ServerToClientEvents>`
+- All event handlers receive properly typed data from @uno/shared
+- No avatar field in room:create or room:join events (not in ClientToServerEvents)
+
+### Implementation Details
+- Express app created but no routes (Socket.io only)
+- HTTP server wraps Express for Socket.io integration
+- RoomManager instantiated with io reference
+- Connection handler logs socket.id for debugging
+- Disconnect handler logs socket.id for debugging
+
+### Build Verification
+- ✓ `npx tsc --noEmit --project apps/uno-server/tsconfig.json` passes
+- ✓ No TypeScript errors
+- ✓ All imports resolve correctly
+- ✓ Socket.io types properly applied
+
+### Files Modified
+1. `apps/uno-server/src/index.ts` - Complete server entry point (106 lines)
+
+### Commit
+- Message: `feat(uno-server): wire Socket.io events and complete server entry point`
+- Files: 1 modified, ~92 insertions

@@ -938,7 +938,7 @@ Wave 5 (After Wave 4 — Integration & Deployment):
 
 ---
 
-- [ ] 8. Server entry + socket wiring — `apps/uno-server/src/index.ts`
+- [x] 8. Server entry + socket wiring — `apps/uno-server/src/index.ts`
 
   **What to do**:
   - Update `apps/uno-server/src/index.ts` (replacing the scaffold from Task 2):
