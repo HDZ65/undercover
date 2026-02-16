@@ -174,3 +174,28 @@ apps/uno-client/
 - Wild/WildDrawFour -> Always valid
 - Stacking: +2 on +2 only if pendingDrawStack > 0 AND stackDrawTwo enabled
 - Stacking: +4 on +4 only if pendingDrawStack > 0 AND stackDrawFour enabled
+
+## Task 7: Room Manager - COMPLETED ✓
+
+### Room Lifecycle Pattern
+- createRoom: Generate unique 6-char code -> create actor -> subscribe -> start -> add host player -> broadcast
+- joinRoom: Validate room/state/capacity -> add player -> send ADD_PLAYER -> broadcast
+- Reconnection: Restore socketId -> cancel disconnect timer -> disable bot control -> broadcast
+- Disconnect: 90s grace timer -> on expiry switch to bot and schedule bot action if turn is active
+
+### Anti-Cheat Broadcasting
+- PublicGameState only includes `handSize` and never includes full hand contents
+- PrivatePlayerState includes `hand: Card[]` and action flags for the specific player only
+- Broadcast is per-player (`game:state` emitted individually with shared public + player-specific private state)
+
+### Bot AI Logic
+- Decision order: matching color -> matching value -> wild -> wild-draw4
+- Auto-call UNO when bot is about to play down to one card
+- Wild color selection uses most common color in remaining hand
+- Bot actions run with `BOT_PLAY_DELAY_MS` delay and only while player is marked bot-controlled
+
+### Turn Timer
+- Per-room interval runs every 1000ms while in `playerTurn`
+- Timer state tracked server-side and rebroadcast on each tick
+- Emits `TURN_TIMEOUT` when timer reaches zero, then clears active interval
+- Interval is restarted automatically on turn changes and stopped outside turn phase

@@ -831,7 +831,7 @@ Wave 5 (After Wave 4 — Integration & Deployment):
 
 ---
 
-- [ ] 7. Room Manager — `apps/uno-server/src/roomManager.ts`
+- [x] 7. Room Manager — `apps/uno-server/src/roomManager.ts`
 
   **What to do**:
   - Create `apps/uno-server/src/roomManager.ts` following `apps/server/src/roomManager.ts` pattern exactly:
