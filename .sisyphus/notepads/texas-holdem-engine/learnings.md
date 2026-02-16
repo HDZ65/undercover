@@ -1104,3 +1104,50 @@ Convention and pattern discoveries from implementation.
 - Connect to real game state (handStrength from PokerPrivateState)
 - Test with actual HandHistoryEntry data from server
 - Consider adding filters (by player, by date range) to history viewer
+
+## Task 25: usePokerSocket Hook Implementation
+
+### Implementation Summary
+Created a custom React hook `usePokerSocket` that manages poker socket connections and state.
+
+**File Created:**
+- `apps/client/src/components/screens/poker/hooks/usePokerSocket.ts`
+
+**Key Design Decisions:**
+
+1. **Socket Parameter**: The hook accepts a `PokerSocket` parameter instead of using SocketContext directly. This allows flexibility for testing and different socket instances.
+
+2. **Event Listeners**: Implemented listeners for:
+   - `poker:state` - Updates public and private game state
+   - `poker:tableList` - Updates available tables
+   - `poker:timer` - Tracks action timer countdown
+   - `poker:error` - Handles error messages
+   - `connect`/`disconnect` - Tracks connection status
+
+3. **Action Dispatchers**: All action methods emit socket events with proper payload structure:
+   - Game actions: `fold()`, `check()`, `call()`, `raise(amount)`, `allIn()`
+   - Table actions: `createTable()`, `joinTable()`, `leaveTable()`
+   - Player actions: `sitOut()`, `sitIn()`, `toggleStraddle()`, `acceptRunItTwice()`
+
+4. **Sequence Number Tracking**: Implemented via `sequenceNumberRef` to track action ordering (incremented on each action, reset on new hand).
+
+5. **State Management**: Uses React hooks (useState) for:
+   - publicState, privateState, tableList, timer, error
+   - isConnected, currentTableId
+
+6. **Return Type**: Strongly typed `UsePokerSocketReturn` interface exported for consumer components.
+
+### Event Mapping
+- Client → Server: All poker events use socket.emit() with proper payloads
+- Server → Client: Listeners handle state updates and error notifications
+
+### Integration Points
+- Exports added to `apps/client/src/components/screens/poker/index.ts`
+- Uses shared types from `@undercover/shared` (PokerPublicState, PokerPrivateState, TableConfig)
+- Compatible with Socket.io client library
+
+### Build Status
+✅ Build successful with 0 errors
+✅ All TypeScript diagnostics clean
+✅ Exports properly configured
+

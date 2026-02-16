@@ -1753,7 +1753,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 24. Hand Strength Display & Hand History Viewer
+- [x] 24. Hand Strength Display & Hand History Viewer
 
   **What to do**:
   - **Hand strength**: Display player's current hand strength in real-time
@@ -1794,7 +1794,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 25. Poker Client Hook (usePokerSocket)
+- [x] 25. Poker Client Hook (usePokerSocket)
 
   **What to do**:
   - Create `apps/client/src/hooks/usePokerSocket.ts`:
