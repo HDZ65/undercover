@@ -1707,7 +1707,7 @@ Wave 5 (Client UI — After Wave 4):
 
 ---
 
-- [ ] 23. Chip Animations & Dealer Button Movement
+- [x] 23. Chip Animations & Dealer Button Movement
 
   **What to do**:
   - Add Framer Motion animations to poker table:
