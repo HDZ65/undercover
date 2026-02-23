@@ -3,7 +3,7 @@ import {
   BOT_PLAY_DELAY_MS,
   DISCONNECT_GRACE_MS,
   UNO_CATCH_WINDOW_MS,
-} from '@uno/shared'
+} from './shared.js'
 import type {
   Card,
   CardColor,
@@ -15,7 +15,7 @@ import type {
   PublicPlayer,
   ServerToClientEvents,
   UnoGamePhase,
-} from '@uno/shared'
+} from './shared.js'
 import type { Namespace, Socket } from 'socket.io'
 import { createActor, type ActorRefFrom, type SnapshotFrom } from 'xstate'
 import { getValidPlays } from './deck.js'

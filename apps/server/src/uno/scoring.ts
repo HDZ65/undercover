@@ -1,5 +1,5 @@
-import { CARD_POINTS } from '@uno/shared'
-import type { Card } from '@uno/shared'
+import { CARD_POINTS } from './shared.js'
+import type { Card } from './shared.js'
 
 export const getCardPoints = (card: Card): number => {
   return CARD_POINTS[card.value]

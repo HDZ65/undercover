@@ -7,7 +7,7 @@ import type { ClientToServerEvents, ServerToClientEvents } from '@undercover/sha
 import type {
   ClientToServerEvents as UnoClientToServerEvents,
   ServerToClientEvents as UnoServerToClientEvents,
-} from '@uno/shared';
+} from './uno/shared.js';
 import { RoomManager } from './roomManager';
 import { PokerRoomManager } from './poker/pokerRoomManager';
 import { RoomManager as UnoRoomManager } from './uno/roomManager.js';

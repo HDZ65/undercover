@@ -1,4 +1,4 @@
-import { UNO_CATCH_WINDOW_MS } from '@uno/shared'
+import { UNO_CATCH_WINDOW_MS } from './shared.js'
 import { getValidPlays, isValidPlay } from './deck.js'
 import type { UnoMachineEvent, UnoMachineContext } from './unoMachine.js'
 

@@ -1,5 +1,5 @@
-import { DEFAULT_TARGET_SCORE, DEFAULT_TURN_TIMER } from '@uno/shared'
-import type { Card, CardColor, HouseRules, PlayDirection } from '@uno/shared'
+import { DEFAULT_TARGET_SCORE, DEFAULT_TURN_TIMER } from './shared.js'
+import type { Card, CardColor, HouseRules, PlayDirection } from './shared.js'
 import { setup } from 'xstate'
 import { unoActions } from './unoActions.js'
 import { unoGuards } from './unoGuards.js'

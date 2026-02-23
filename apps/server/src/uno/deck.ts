@@ -1,6 +1,6 @@
 import { randomInt } from 'crypto'
-import { INITIAL_HAND_SIZE } from '@uno/shared'
-import type { Card, CardColor, CardValue, HouseRules } from '@uno/shared'
+import { INITIAL_HAND_SIZE } from './shared.js'
+import type { Card, CardColor, CardValue, HouseRules } from './shared.js'
 
 type ColoredDuplicateValue = Exclude<CardValue, '0'>
 

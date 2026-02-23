@@ -4,8 +4,8 @@ import {
   DEFAULT_TURN_TIMER,
   INITIAL_HAND_SIZE,
   UNO_PENALTY_CARDS,
-} from '@uno/shared'
-import type { CardColor, HouseRules, PlayDirection } from '@uno/shared'
+} from './shared.js'
+import type { CardColor, HouseRules, PlayDirection } from './shared.js'
 import { calculateRoundScore } from './scoring.js'
 import { createDeck, dealInitialHands, drawCards, getStartingDiscard, shuffleDeck } from './deck.js'
 import type { MachinePlayer, UnoMachineContext, UnoMachineEvent } from './unoMachine.js'
