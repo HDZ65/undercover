@@ -1,10 +1,16 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import type { Namespace } from 'socket.io';
 import cors from 'cors';
 import type { ClientToServerEvents, ServerToClientEvents } from '@undercover/shared';
+import type {
+  ClientToServerEvents as UnoClientToServerEvents,
+  ServerToClientEvents as UnoServerToClientEvents,
+} from '@uno/shared';
 import { RoomManager } from './roomManager';
 import { PokerRoomManager } from './poker/pokerRoomManager';
+import { RoomManager as UnoRoomManager } from './uno/roomManager.js';
 
 const app = express();
 app.use(cors());
@@ -25,6 +31,8 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 
 const roomManager = new RoomManager(io);
 const pokerRoomManager = new PokerRoomManager(io);
+const unoNamespace = io.of('/uno') as Namespace<UnoClientToServerEvents, UnoServerToClientEvents>;
+const unoRoomManager = new UnoRoomManager(unoNamespace);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
@@ -70,6 +78,78 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => roomManager.handleDisconnect(socket));
   socket.on('disconnect', () => pokerRoomManager.handleDisconnect(socket));
+});
+
+unoNamespace.on('connection', (socket) => {
+  console.log(`[UNO] Connected: ${socket.id}`);
+
+  socket.on('room:create', (data) => {
+    unoRoomManager.createRoom(socket, data.playerName);
+  });
+
+  socket.on('room:join', (data) => {
+    unoRoomManager.joinRoom(socket, data.roomCode, data.playerName, data.playerToken);
+  });
+
+  socket.on('room:leave', () => {
+    unoRoomManager.leaveRoom(socket);
+  });
+
+  socket.on('game:startGame', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'START_GAME', data);
+  });
+
+  socket.on('game:playCard', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'PLAY_CARD', data);
+  });
+
+  socket.on('game:drawCard', () => {
+    unoRoomManager.handleGameEvent(socket, 'DRAW_CARD');
+  });
+
+  socket.on('game:callUno', () => {
+    unoRoomManager.handleGameEvent(socket, 'CALL_UNO');
+  });
+
+  socket.on('game:catchUno', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'CATCH_UNO', data);
+  });
+
+  socket.on('game:chooseColor', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'CHOOSE_COLOR', data);
+  });
+
+  socket.on('game:challengeWD4', () => {
+    unoRoomManager.handleGameEvent(socket, 'CHALLENGE_WD4');
+  });
+
+  socket.on('game:acceptWD4', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'ACCEPT_WD4', data);
+  });
+
+  socket.on('game:setHouseRules', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'SET_HOUSE_RULES', data);
+  });
+
+  socket.on('game:setTargetScore', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'SET_TARGET_SCORE', data);
+  });
+
+  socket.on('game:setTurnTimer', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'SET_TURN_TIMER', data);
+  });
+
+  socket.on('game:continueNextRound', () => {
+    unoRoomManager.handleGameEvent(socket, 'CONTINUE_NEXT_ROUND');
+  });
+
+  socket.on('game:resetGame', () => {
+    unoRoomManager.handleGameEvent(socket, 'RESET_GAME');
+  });
+
+  socket.on('disconnect', () => {
+    unoRoomManager.handleDisconnect(socket);
+  });
 });
 
 const PORT = process.env.PORT || 3001;

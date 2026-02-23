@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { io, type Socket } from 'socket.io-client'
 
-const UNO_SERVER_URL = import.meta.env.VITE_UNO_SERVER_URL || 'http://localhost:3002'
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'
 
 type LandingMode = 'create' | 'join'
 
@@ -46,7 +46,7 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
   const [isHost, setIsHost] = useState(false)
 
   useEffect(() => {
-    const socket = io(UNO_SERVER_URL, {
+    const socket = io(`${SERVER_URL}/uno`, {
       autoConnect: true,
       transports: ['websocket', 'polling'],
     })
@@ -295,7 +295,7 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
 
         <div className="mt-5 text-sm text-center">
           <span className={connected ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
-            {connected ? 'Connecte au serveur UNO' : 'Connexion au serveur UNO...'}
+            {connected ? 'Connecte au serveur principal (/uno)' : 'Connexion au serveur principal (/uno)...'}
           </span>
           {error && (
             <p className="text-rose-600 dark:text-rose-400 mt-2">{error}</p>
