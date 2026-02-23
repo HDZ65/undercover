@@ -36,7 +36,7 @@ function App() {
 
     if (selectedGame === 'undercover') {
       if (!socket.roomCode || !socket.publicState) {
-        return <Landing selectedGame="undercover" onBack={handleBackToMenu} />
+        return <Landing onBack={handleBackToMenu} />
       }
 
       switch (socket.phase) {
@@ -57,7 +57,7 @@ function App() {
         case 'victory':
           return <Victory />
         default:
-          return <Landing selectedGame="undercover" onBack={handleBackToMenu} />
+          return <Landing onBack={handleBackToMenu} />
       }
     }
 
