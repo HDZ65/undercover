@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build --workspace=packages/shared && npm run build --workspace=apps/client",
+  "buildCommand": "npm run build --workspace=packages/shared && npm run build --workspace=packages/uno-shared && npm run build --workspace=apps/client",
   "outputDirectory": "apps/client/dist",
   "installCommand": "npm install",
   "framework": "vite"

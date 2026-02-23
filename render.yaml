@@ -4,7 +4,7 @@ services:
     runtime: node
     region: frankfurt
     plan: free
-    buildCommand: npm install && npm run build --workspace=packages/shared
+    buildCommand: npm install && npm run build --workspace=packages/shared && npm run build --workspace=packages/uno-shared
     startCommand: npx tsx apps/server/src/index.ts
     envVars:
       - key: NODE_ENV
