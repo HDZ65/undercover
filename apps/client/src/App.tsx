@@ -13,6 +13,7 @@ import { Elimination } from './components/screens/Elimination'
 import { MrWhiteGuess } from './components/screens/MrWhiteGuess'
 import { Victory } from './components/screens/Victory'
 import { PokerLobby } from './components/screens/poker'
+import { UnoLobby } from './components/screens/uno'
 
 export const SocketContext = createContext<UseSocketReturn | null>(null)
 
@@ -62,6 +63,11 @@ function App() {
 
     if (selectedGame === 'poker') {
       return <PokerLobby onBack={handleBackToMenu} />
+    }
+
+
+    if (selectedGame === 'uno') {
+      return <UnoLobby onBack={handleBackToMenu} />
     }
 
     return <GameMenu onSelectGame={setSelectedGame} />

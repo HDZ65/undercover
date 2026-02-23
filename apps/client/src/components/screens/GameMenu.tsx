@@ -24,7 +24,7 @@ const GAMES: GameOption[] = [
     description: 'Le classique des jeux de cartes. Soyez le premier a vider votre main.',
     gradient: 'from-red-500 to-yellow-500',
     players: '2-10 joueurs',
-    available: false,
+    available: true,
   },
   {
     id: 'poker',
