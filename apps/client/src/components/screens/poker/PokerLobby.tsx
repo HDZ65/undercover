@@ -1,52 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'motion/react'
-import type { TableConfig } from '@undercover/shared'
+import { io, type Socket } from 'socket.io-client'
+import type { ClientToServerEvents, ServerToClientEvents } from '@undercover/shared'
+import { PokerTable } from './PokerTable'
+import { usePokerSocket } from './hooks/usePokerSocket'
 
 interface PokerLobbyProps {
   onBack?: () => void
 }
 
-interface Table {
-  id: string
-  playerCount: number
-  config: TableConfig
-}
+const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'
+
+type PokerSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
 export function PokerLobby({ onBack }: PokerLobbyProps) {
-  const [tables] = useState<Table[]>([
-    {
-      id: 'table-1',
-      playerCount: 3,
-      config: {
-        maxPlayers: 6,
-        smallBlind: 50,
-        bigBlind: 100,
-        minBuyIn: 1000,
-        maxBuyIn: 10000,
-        actionTimeoutMs: 30000,
-        straddleEnabled: false,
-        runItTwiceEnabled: false,
-      },
-    },
-    {
-      id: 'table-2',
-      playerCount: 5,
-      config: {
-        maxPlayers: 6,
-        smallBlind: 100,
-        bigBlind: 200,
-        minBuyIn: 2000,
-        maxBuyIn: 20000,
-        actionTimeoutMs: 30000,
-        straddleEnabled: false,
-        runItTwiceEnabled: false,
-      },
-    },
-  ])
-
+  const [socket, setSocket] = useState<PokerSocket | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [selectedTable, setSelectedTable] = useState<string | null>(null)
   const [showJoinForm, setShowJoinForm] = useState(false)
+  const [playerName, setPlayerName] = useState('')
+  const [localError, setLocalError] = useState<string | null>(null)
 
   const [createFormData, setCreateFormData] = useState({
     smallBlind: 50,
@@ -60,11 +33,39 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
     seatIndex: 0,
   })
 
-  const playerBalance = 50000 // Mock player balance in centimes
+  const poker = usePokerSocket(socket)
+
+  useEffect(() => {
+    const nextSocket: PokerSocket = io(SERVER_URL, {
+      autoConnect: true,
+      transports: ['websocket', 'polling'],
+    })
+
+    setSocket(nextSocket)
+
+    return () => {
+      nextSocket.removeAllListeners()
+      nextSocket.disconnect()
+      setSocket(null)
+    }
+  }, [])
+
+  const validationMessage = useMemo(() => {
+    if (localError) {
+      return localError
+    }
+    return poker.error?.message ?? null
+  }, [localError, poker.error?.message])
 
   const handleCreateTable = () => {
-    // TODO: Connect to socket when backend is ready
-    console.log('Creating table with config:', {
+    const name = playerName.trim()
+    if (!name) {
+      setLocalError('Le nom du joueur est requis.')
+      return
+    }
+
+    setLocalError(null)
+    poker.createTable({
       maxPlayers: 6,
       smallBlind: createFormData.smallBlind,
       bigBlind: createFormData.bigBlind,
@@ -78,19 +79,65 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
   }
 
   const handleJoinTable = (tableId: string) => {
-    // TODO: Connect to socket when backend is ready
-    console.log('Joining table:', {
-      tableId,
-      playerName: 'Player',
-      buyIn: joinFormData.buyIn,
-      seatIndex: joinFormData.seatIndex,
-    })
+    const name = playerName.trim()
+    if (!name) {
+      setLocalError('Le nom du joueur est requis.')
+      return
+    }
+
+    setLocalError(null)
+    poker.joinTable(tableId, name, joinFormData.buyIn, joinFormData.seatIndex)
     setShowJoinForm(false)
     setSelectedTable(null)
   }
 
-  const formatChips = (centimes: number) => {
-    return (centimes / 100).toFixed(2)
+  const formatChips = (centimes: number) => (centimes / 100).toFixed(2)
+
+  if (poker.publicState) {
+    return (
+      <div className="relative w-full">
+        <PokerTable
+          gameState={poker.publicState}
+          playerHoleCards={poker.privateState?.holeCards}
+          playerId={poker.privateState?.playerId}
+        />
+
+        <div className="absolute top-4 left-4 right-4 md:left-auto md:w-80 space-y-2">
+          <div className="rounded-2xl border border-slate-200/80 dark:border-slate-700 bg-white/90 dark:bg-slate-900/80 backdrop-blur-md p-3 shadow-lg">
+            <p
+              className={`text-sm font-medium ${
+                poker.isConnected
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-amber-600 dark:text-amber-400'
+              }`}
+            >
+              {poker.isConnected ? 'Connecté au serveur' : 'Connexion au serveur...'}
+            </p>
+            {validationMessage && (
+              <p className="text-sm text-rose-600 dark:text-rose-400 mt-1">{validationMessage}</p>
+            )}
+          </div>
+
+          <motion.button
+            onClick={() => poker.leaveTable()}
+            className="w-full min-h-[44px] px-5 py-2 bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-700 dark:to-slate-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+          >
+            Quitter la table
+          </motion.button>
+
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="w-full min-h-[44px] text-sm font-semibold text-white/90 hover:text-white transition-colors"
+            >
+              ← Retour aux jeux
+            </button>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -102,7 +149,6 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
       transition={{ duration: 0.35 }}
     >
       <div className="rounded-3xl border border-slate-200/80 dark:border-slate-700 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md shadow-2xl p-6 md:p-8 space-y-6">
-        {/* Header */}
         <div className="text-center">
           <motion.h1
             className="text-5xl md:text-6xl font-bold tracking-tight mb-2"
@@ -117,17 +163,39 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
           <p className="text-slate-600 dark:text-slate-400">Lobby</p>
         </div>
 
-        {/* Player Balance */}
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20 rounded-lg p-4 border border-amber-200 dark:border-amber-800">
-          <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">Votre solde</p>
-          <p className="text-3xl font-bold text-amber-900 dark:text-amber-100">
-            ${formatChips(playerBalance)}
-          </p>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/90 dark:bg-slate-900/60 p-4 space-y-3">
+          <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 block">
+            Nom du joueur
+          </label>
+          <input
+            type="text"
+            value={playerName}
+            onChange={(e) => {
+              setPlayerName(e.target.value)
+              if (localError) {
+                setLocalError(null)
+              }
+            }}
+            placeholder="Votre pseudo"
+            maxLength={24}
+            className="w-full min-h-[48px] px-4 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-orange-500"
+          />
+          <span
+            className={`text-sm ${
+              poker.isConnected
+                ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-amber-600 dark:text-amber-400'
+            }`}
+          >
+            {poker.isConnected ? 'Connecté au serveur' : 'Connexion au serveur...'}
+          </span>
+          {validationMessage && (
+            <p className="text-sm text-rose-600 dark:text-rose-400">{validationMessage}</p>
+          )}
         </div>
 
-        {/* Create Table Button */}
         <motion.button
-          onClick={() => setShowCreateForm(!showCreateForm)}
+          onClick={() => setShowCreateForm((prev) => !prev)}
           className="w-full min-h-[44px] px-6 py-3 bg-gradient-to-r from-red-600 to-orange-600 dark:from-red-500 dark:to-orange-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all"
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.99 }}
@@ -135,7 +203,6 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
           {showCreateForm ? '✕ Annuler' : '+ Créer une table'}
         </motion.button>
 
-        {/* Create Table Form */}
         {showCreateForm && (
           <motion.div
             className="bg-slate-50 dark:bg-slate-900/60 rounded-lg p-4 border border-slate-200 dark:border-slate-700 space-y-4"
@@ -151,12 +218,15 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                 <input
                   type="number"
                   value={createFormData.smallBlind / 100}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      smallBlind: Math.round(parseFloat(e.target.value) * 100),
-                    })
-                  }
+                  onChange={(e) => {
+                    const value = Number.parseFloat(e.target.value)
+                    if (Number.isFinite(value)) {
+                      setCreateFormData((prev) => ({
+                        ...prev,
+                        smallBlind: Math.max(0, Math.round(value * 100)),
+                      }))
+                    }
+                  }}
                   className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                 />
               </div>
@@ -167,12 +237,15 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                 <input
                   type="number"
                   value={createFormData.bigBlind / 100}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      bigBlind: Math.round(parseFloat(e.target.value) * 100),
-                    })
-                  }
+                  onChange={(e) => {
+                    const value = Number.parseFloat(e.target.value)
+                    if (Number.isFinite(value)) {
+                      setCreateFormData((prev) => ({
+                        ...prev,
+                        bigBlind: Math.max(0, Math.round(value * 100)),
+                      }))
+                    }
+                  }}
                   className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                 />
               </div>
@@ -183,12 +256,15 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                 <input
                   type="number"
                   value={createFormData.minBuyIn / 100}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      minBuyIn: Math.round(parseFloat(e.target.value) * 100),
-                    })
-                  }
+                  onChange={(e) => {
+                    const value = Number.parseFloat(e.target.value)
+                    if (Number.isFinite(value)) {
+                      setCreateFormData((prev) => ({
+                        ...prev,
+                        minBuyIn: Math.max(0, Math.round(value * 100)),
+                      }))
+                    }
+                  }}
                   className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                 />
               </div>
@@ -199,12 +275,15 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                 <input
                   type="number"
                   value={createFormData.maxBuyIn / 100}
-                  onChange={(e) =>
-                    setCreateFormData({
-                      ...createFormData,
-                      maxBuyIn: Math.round(parseFloat(e.target.value) * 100),
-                    })
-                  }
+                  onChange={(e) => {
+                    const value = Number.parseFloat(e.target.value)
+                    if (Number.isFinite(value)) {
+                      setCreateFormData((prev) => ({
+                        ...prev,
+                        maxBuyIn: Math.max(0, Math.round(value * 100)),
+                      }))
+                    }
+                  }}
                   className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                 />
               </div>
@@ -220,15 +299,14 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
           </motion.div>
         )}
 
-        {/* Tables List */}
         <div className="space-y-3">
           <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Tables disponibles</h2>
-          {tables.length === 0 ? (
+          {poker.tableList.length === 0 ? (
             <div className="bg-slate-100 dark:bg-slate-900/60 rounded-lg p-4 text-center text-slate-600 dark:text-slate-400">
               Aucune table disponible
             </div>
           ) : (
-            tables.map((table) => (
+            poker.tableList.map((table) => (
               <motion.div
                 key={table.id}
                 className="bg-slate-50 dark:bg-slate-900/60 rounded-lg p-4 border border-slate-200 dark:border-slate-700 space-y-3"
@@ -236,7 +314,7 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <div className="flex-1">
                     <p className="font-semibold text-slate-900 dark:text-slate-100">
                       ${formatChips(table.config.smallBlind)} / ${formatChips(table.config.bigBlind)}
@@ -252,8 +330,12 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                     onClick={() => {
                       setSelectedTable(table.id)
                       setShowJoinForm(true)
+                      setJoinFormData({
+                        buyIn: table.config.minBuyIn,
+                        seatIndex: 0,
+                      })
                     }}
-                    className="min-h-[44px] px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-500 dark:to-purple-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all"
+                    className="min-h-[44px] px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-500 dark:to-indigo-500 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -261,7 +343,6 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                   </motion.button>
                 </div>
 
-                {/* Join Form for Selected Table */}
                 {selectedTable === table.id && showJoinForm && (
                   <motion.div
                     className="bg-white dark:bg-slate-800 rounded-lg p-4 border border-slate-300 dark:border-slate-600 space-y-3"
@@ -277,12 +358,17 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                         <input
                           type="number"
                           value={joinFormData.buyIn / 100}
-                          onChange={(e) =>
-                            setJoinFormData({
-                              ...joinFormData,
-                              buyIn: Math.round(parseFloat(e.target.value) * 100),
-                            })
-                          }
+                          onChange={(e) => {
+                            const value = Number.parseFloat(e.target.value)
+                            if (Number.isFinite(value)) {
+                              const centimes = Math.round(value * 100)
+                              const clamped = Math.min(
+                                table.config.maxBuyIn,
+                                Math.max(table.config.minBuyIn, centimes),
+                              )
+                              setJoinFormData((prev) => ({ ...prev, buyIn: clamped }))
+                            }
+                          }}
                           min={table.config.minBuyIn / 100}
                           max={table.config.maxBuyIn / 100}
                           className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100"
@@ -295,16 +381,16 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
                         <select
                           value={joinFormData.seatIndex}
                           onChange={(e) =>
-                            setJoinFormData({
-                              ...joinFormData,
-                              seatIndex: parseInt(e.target.value),
-                            })
+                            setJoinFormData((prev) => ({
+                              ...prev,
+                              seatIndex: Number.parseInt(e.target.value, 10),
+                            }))
                           }
                           className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100"
                         >
-                          {Array.from({ length: table.config.maxPlayers }).map((_, i) => (
-                            <option key={i} value={i}>
-                              Siège {i + 1}
+                          {Array.from({ length: table.config.maxPlayers }).map((_, index) => (
+                            <option key={index} value={index}>
+                              Siège {index + 1}
                             </option>
                           ))}
                         </select>
@@ -338,7 +424,6 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
           )}
         </div>
 
-        {/* Back Button */}
         {onBack && (
           <button
             onClick={onBack}
