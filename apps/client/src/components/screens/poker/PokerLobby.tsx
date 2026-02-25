@@ -65,7 +65,7 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
     }
 
     setLocalError(null)
-    poker.createTable({
+    poker.createTable(name, {
       maxPlayers: 6,
       smallBlind: createFormData.smallBlind,
       bigBlind: createFormData.bigBlind,

@@ -42,7 +42,7 @@ interface UsePokerSocketReturn {
   allIn: () => void
 
   // Table actions
-  createTable: (config?: Partial<TableConfig>) => void
+  createTable: (playerName: string, config?: Partial<TableConfig>) => void
   joinTable: (tableId: string, playerName: string, buyIn: number, seatIndex?: number) => void
   leaveTable: () => void
 
@@ -165,10 +165,10 @@ export function usePokerSocket(socket: PokerSocket | null): UsePokerSocketReturn
 
   // Table action dispatchers
   const createTable = useCallback(
-    (config?: Partial<TableConfig>) => {
+    (playerName: string, config?: Partial<TableConfig>) => {
       if (!socket) return
       socket.emit('poker:createTable', {
-        playerName: 'Player',
+        playerName,
         config,
       })
     },
