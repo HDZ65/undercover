@@ -9,7 +9,7 @@ export const DISCONNECT_GRACE_MS = 90_000;       // 90s reconnection window
 export const EMPTY_ROOM_CLEANUP_MS = 600_000;    // 10min empty room cleanup
 export const PHASE_AUTO_ADVANCE_MS = 5_000;      // 5s between phases
 export const RESOLUTION_STEP_DELAY_MS = 2_500;   // 2.5s per resolution step
-export const MIN_ACTIVE_PLAYERS = 3;              // game ends when <= 2 active
+export const MIN_ACTIVE_PLAYERS = 2;              // game ends when <= 1 active (supports 2-player games)
 
 // ─── Score Weights ─────────────────────────────────────────────
 // Economic war: PIB (45%) > Militaire (30%) > Bonheur (25%)

@@ -6,7 +6,7 @@
 import type { ResolutionEntry, PlayerAction } from '@undercover/shared';
 import type { EcoWarGameContext } from './types.js';
 import { resolveSabotageActions } from './espionage.js';
-import { resolveWars, declareWar, degradeUnmaintainedWeapons } from './military.js';
+import { resolveWars, declareWar, degradeUnmaintainedWeapons, calculateEffectiveForce } from './military.js';
 import { collectIncome, calculateMaintenanceCosts } from './production.js';
 import { updatePopulation, updatePollution } from './population.js';
 import { resolveCommerce } from './commerce.js';
@@ -202,6 +202,7 @@ function resolveScores(context: EcoWarGameContext): ResolutionEntry[] {
     const orgCount = player.organizationMemberships.length;
     player.gdp = calculateGDP(player);
     player.influence = calculateInfluence(player, orgCount);
+    player.military.effectiveForce = calculateEffectiveForce(player);
     const oldScore = player.score;
     player.score = calculateScore(player);
     const diff = player.score - oldScore;

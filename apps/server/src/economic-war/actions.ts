@@ -377,8 +377,12 @@ function processImmediateActions(
       case 'buildWeapon':
         if (action.weaponTier) {
           const weapon = createWeapon(action.weaponTier, 'open', null);
-          player.military.weapons.push(weapon);
-          player.money -= weapon.maintenanceCost * 10; // purchase cost
+          const cost = weapon.maintenanceCost * 10;
+          if (player.money >= cost) {
+            player.money -= cost;
+            player.military.weapons.push(weapon);
+            player.military.effectiveForce = calculateEffectiveForce(player);
+          }
         }
         break;
 
