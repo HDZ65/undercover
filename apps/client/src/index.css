@@ -36,3 +36,110 @@ html {
 body {
   @apply transition-colors duration-300;
 }
+
+/* ─── UNO Game Animations ─── */
+
+@keyframes uno-pulse-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.3), 0 0 30px rgba(245, 158, 11, 0.15); }
+  50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.6), 0 0 50px rgba(245, 158, 11, 0.3); }
+}
+
+@keyframes uno-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes uno-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes uno-urgency-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.85; }
+}
+
+@keyframes uno-card-slam {
+  0% { transform: scale(1.4) rotate(-8deg); opacity: 0; }
+  40% { transform: scale(1.05) rotate(2deg); opacity: 1; }
+  70% { transform: scale(0.98) rotate(-0.5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes uno-gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes uno-bounce-in {
+  0% { transform: scale(0) rotate(-12deg); opacity: 0; }
+  60% { transform: scale(1.15) rotate(3deg); opacity: 1; }
+  80% { transform: scale(0.95) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes uno-draw-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 255, 255, 0.1); transform: scale(1); }
+  50% { box-shadow: 0 0 25px rgba(255, 255, 255, 0.35); transform: scale(1.03); }
+}
+
+@keyframes uno-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+  20%, 40%, 60%, 80% { transform: translateX(3px); }
+}
+
+@keyframes uno-color-burst {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes uno-particle-float {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 0.6; scale: 1; }
+  90% { opacity: 0.4; }
+  100% { transform: translateY(-20vh) scale(0.5); opacity: 0; }
+}
+
+@keyframes uno-turn-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(250, 204, 21, 0); }
+}
+
+.uno-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.15) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: uno-shimmer 2.5s ease-in-out infinite;
+}
+
+.uno-pulse-glow {
+  animation: uno-pulse-glow 2s ease-in-out infinite;
+}
+
+.uno-float {
+  animation: uno-float 3s ease-in-out infinite;
+}
+
+.uno-urgency {
+  animation: uno-urgency-pulse 0.6s ease-in-out infinite;
+}
+
+.uno-gradient-bg {
+  background: linear-gradient(-45deg, #0f172a, #1e1b4b, #1a0a2e, #0c1220);
+  background-size: 400% 400%;
+  animation: uno-gradient-shift 12s ease infinite;
+}
+
+.uno-draw-pulse {
+  animation: uno-draw-pulse 1.5s ease-in-out infinite;
+}
+
+.uno-turn-ring {
+  animation: uno-turn-ring 1.5s ease-in-out infinite;
+}
+
+.uno-card-slam {
+  animation: uno-card-slam 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
