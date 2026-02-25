@@ -448,7 +448,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   earlyVictoryThreshold: 50000,
   countryDraftMode: 'draft',
   draftTimerSeconds: 30,
-  minPlayers: 4,
+  minPlayers: 2,
   maxPlayers: 12,
 };
 
