@@ -50,6 +50,7 @@ export type UnoMachineEvent =
   | { type: 'SET_TURN_TIMER'; turnTimer: number }
   | { type: 'START_GAME'; houseRules?: HouseRules; targetScore?: number; turnTimer?: number }
   | { type: 'PLAY_CARD'; playerId: string; cardId: string }
+  | { type: 'PLAY_CARDS'; playerId: string; cardIds: string[] }
   | { type: 'DRAW_CARD'; playerId: string }
   | { type: 'CALL_UNO'; playerId: string }
   | { type: 'CATCH_UNO'; playerId: string; targetId: string }
@@ -164,6 +165,16 @@ export const unoMachine = setup({
           },
           target: 'postPlay',
           actions: unoActions.playCard,
+        },
+        PLAY_CARDS: {
+          guard: ({ context, event }) => {
+            return (
+              unoGuards.isCurrentPlayer({ context, event }) &&
+              unoGuards.isValidMultiCardPlay({ context, event })
+            )
+          },
+          target: 'postPlay',
+          actions: unoActions.playCards,
         },
         DRAW_CARD: [
           {

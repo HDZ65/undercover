@@ -2,6 +2,8 @@ import { UNO_CATCH_WINDOW_MS } from './shared.js'
 import { getValidPlays, isValidPlay } from './deck.js'
 import type { UnoMachineEvent, UnoMachineContext } from './unoMachine.js'
 
+const NUMBER_CARD_VALUES = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
+
 type EventWithPlayerId = Extract<UnoMachineEvent, { playerId: string }>
 
 const hasPlayerId = (event: UnoMachineEvent): event is EventWithPlayerId => {
@@ -51,6 +53,55 @@ export const unoGuards = {
       context.currentColor,
       context.houseRules,
       context.pendingDrawStack,
+    )
+  },
+
+  isValidMultiCardPlay: ({ context, event }: { context: UnoMachineContext; event: UnoMachineEvent }) => {
+    if (event.type !== 'PLAY_CARDS') {
+      return false
+    }
+
+    if (event.cardIds.length < 2) {
+      return false
+    }
+
+    if (new Set(event.cardIds).size !== event.cardIds.length) {
+      return false
+    }
+
+    const player = context.players.find((candidate) => candidate.id === event.playerId)
+    if (!player) {
+      return false
+    }
+
+    const cards = event.cardIds.map((cardId) => player.hand.find((candidate) => candidate.id === cardId))
+    if (cards.some((card) => !card)) {
+      return false
+    }
+
+    const playedCards = cards.filter((card): card is NonNullable<typeof card> => Boolean(card))
+    const baseValue = playedCards[0]?.value
+    if (!baseValue || !NUMBER_CARD_VALUES.has(baseValue)) {
+      return false
+    }
+
+    if (!playedCards.every((card) => card.value === baseValue && NUMBER_CARD_VALUES.has(card.value))) {
+      return false
+    }
+
+    const discardTop = context.discardPile[context.discardPile.length - 1]
+    if (!discardTop) {
+      return false
+    }
+
+    return playedCards.some((card) =>
+      isValidPlay(
+        card,
+        discardTop,
+        context.currentColor,
+        context.houseRules,
+        context.pendingDrawStack,
+      ),
     )
   },
 

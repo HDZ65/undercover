@@ -13,6 +13,7 @@ import type { MachinePlayer, UnoMachineContext, UnoMachineEvent } from './unoMac
 const assignUno = assign<UnoMachineContext, UnoMachineEvent, undefined, UnoMachineEvent, never>
 
 const DEFAULT_COLOR: CardColor = 'red'
+const NUMBER_CARD_VALUES = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
 
 const DEFAULT_HOUSE_RULES: HouseRules = {
   stackDrawTwo: false,
@@ -424,6 +425,78 @@ export const unoActions = {
             }
           : null,
       colorChooserId: card.color === null ? event.playerId : null,
+    }
+  }),
+
+  playCards: assignUno(({ context, event }) => {
+    if (event.type !== 'PLAY_CARDS' || event.cardIds.length < 2) {
+      return {}
+    }
+
+    const player = context.players.find((candidate) => candidate.id === event.playerId)
+    if (!player) {
+      return {}
+    }
+
+    const cardIds = new Set(event.cardIds)
+    if (cardIds.size !== event.cardIds.length) {
+      return {}
+    }
+
+    const cardsById = new Map(player.hand.map((card) => [card.id, card]))
+    const cardsToPlay = event.cardIds
+      .map((cardId) => cardsById.get(cardId))
+      .filter((card): card is NonNullable<typeof card> => Boolean(card))
+
+    if (cardsToPlay.length !== event.cardIds.length) {
+      return {}
+    }
+
+    const sharedValue = cardsToPlay[0]?.value
+    if (!sharedValue || !NUMBER_CARD_VALUES.has(sharedValue)) {
+      return {}
+    }
+
+    if (!cardsToPlay.every((card) => card.value === sharedValue && NUMBER_CARD_VALUES.has(card.value))) {
+      return {}
+    }
+
+    const playedAt = Date.now()
+    const lastCard = cardsToPlay[cardsToPlay.length - 1]
+    const nextPlayers = context.players.map((candidate) => {
+      if (candidate.id !== event.playerId) {
+        return candidate
+      }
+
+      const nextHand = candidate.hand.filter((handCard) => !cardIds.has(handCard.id))
+      if (nextHand.length === 1) {
+        return {
+          ...candidate,
+          hand: nextHand,
+          hasCalledUno: candidate.hasCalledUno,
+          unoCallTime: candidate.hasCalledUno ? candidate.unoCallTime ?? playedAt : playedAt,
+        }
+      }
+
+      return {
+        ...candidate,
+        hand: nextHand,
+        hasCalledUno: false,
+        unoCallTime: null,
+      }
+    })
+
+    const winner = nextPlayers.find((candidate) => candidate.hand.length === 0)?.id ?? null
+
+    return {
+      players: nextPlayers,
+      discardPile: [...context.discardPile, ...cardsToPlay],
+      currentColor: lastCard.color ?? context.currentColor,
+      hasDrawnThisTurn: false,
+      winner,
+      lastPlayedCard: lastCard,
+      challengeState: null,
+      colorChooserId: null,
     }
   }),
 

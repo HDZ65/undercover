@@ -114,6 +114,10 @@ unoNamespace.on('connection', (socket) => {
     unoRoomManager.handleGameEvent(socket, 'PLAY_CARD', data);
   });
 
+  socket.on('game:playCards', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'PLAY_CARDS', data);
+  });
+
   socket.on('game:drawCard', () => {
     unoRoomManager.handleGameEvent(socket, 'DRAW_CARD');
   });
