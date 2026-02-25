@@ -12,10 +12,15 @@ export const RESOLUTION_STEP_DELAY_MS = 2_500;   // 2.5s per resolution step
 export const MIN_ACTIVE_PLAYERS = 3;              // game ends when <= 2 active
 
 // ─── Score Weights ─────────────────────────────────────────────
+// Economic war: PIB (45%) > Militaire (30%) > Bonheur (25%)
+// Suppression de la composante population pour éviter le déséquilibre ×30
 
-export const SCORE_WEIGHT_GDP = 0.50;
-export const SCORE_WEIGHT_HAPPINESS_POP = 0.30;
-export const SCORE_WEIGHT_INFLUENCE = 0.20;
+export const SCORE_WEIGHT_GDP = 0.45;
+export const SCORE_WEIGHT_MILITARY = 0.30;
+export const SCORE_WEIGHT_HAPPINESS = 0.25;
+// Facteurs d'échelle : amènent force_effective et bonheur à la même magnitude que le PIB
+export const SCORE_MILITARY_SCALE = 10;   // force_effective × 10 ≈ magnitude PIB
+export const SCORE_HAPPINESS_SCALE = 20;  // bonheur (0-100) × 20 ≈ magnitude PIB
 
 // ─── Population ────────────────────────────────────────────────
 

@@ -20,10 +20,27 @@ import { randomUUID as uuid } from 'crypto';
 export function collectIncome(player: ServerPlayerState): number {
   let totalIncome = 0;
 
-  // Factory production
+  // Factory production — apply sector-specific active effects
   for (const factory of player.factories) {
-    totalIncome += calculateFactoryIncome(factory, player);
+    let factoryIncome = calculateFactoryIncome(factory, player);
+
+    for (const effect of player.activeEffects) {
+      if (effect.affectedSector && sectorMatch(effect.affectedSector, factory.sector)) {
+        factoryIncome = Math.max(0, factoryIncome * (1 + effect.modifier));
+      }
+    }
+
+    totalIncome += factoryIncome;
   }
+
+  // Apply general active effects (war mobilization, pandemic, crash, etc.)
+  let generalMult = 1.0;
+  for (const effect of player.activeEffects) {
+    if (!effect.affectedSector) {
+      generalMult *= (1 + effect.modifier);
+    }
+  }
+  totalIncome = Math.max(0, totalIncome * generalMult);
 
   // Patent royalties
   for (const patent of player.patents) {
@@ -37,6 +54,14 @@ export function collectIncome(player: ServerPlayerState): number {
   totalIncome += player.tourism.income;
 
   return Math.round(totalIncome);
+}
+
+/** Maps event sector names to factory sector names */
+function sectorMatch(effectSector: string, factorySector: string): boolean {
+  if (effectSector === factorySector) return true;
+  // Market events use 'agriculture', factories use 'food'
+  if (effectSector === 'agriculture' && factorySector === 'food') return true;
+  return false;
 }
 
 export function calculateFactoryIncome(factory: Factory, player: ServerPlayerState): number {

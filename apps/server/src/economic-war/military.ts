@@ -71,12 +71,27 @@ export function createWeapon(tier: WeaponTier, license: WeaponLicense, sellerId:
   };
 }
 
-export function degradeUnmaintainedWeapons(player: ServerPlayerState): void {
+export function degradeUnmaintainedWeapons(player: ServerPlayerState, context: EcoWarGameContext): void {
   for (const weapon of player.military.weapons) {
-    if (weapon.license === 'proprietary' && weapon.sellerId) {
-      // Check if seller relationship is active (not at war, not sanctioned)
-      // For now, degrade if seller relationship is broken
-      // This will be checked by the resolution orchestrator
+    if (weapon.license !== 'proprietary' || !weapon.sellerId) continue;
+
+    const seller = context.players.get(weapon.sellerId);
+
+    // Dégradation si le vendeur est en guerre contre ce joueur
+    const atWarWithSeller = context.activeWars.some(
+      w => w.status === 'active' &&
+        ((w.attackerId === player.id && w.defenderId === weapon.sellerId) ||
+         (w.defenderId === player.id && w.attackerId === weapon.sellerId)),
+    );
+
+    // Dégradation si sanction totale du vendeur contre ce joueur
+    const sellerFullySanctioned = player.activeSanctions.some(
+      s => s.targetId === weapon.sellerId && s.type === 'full',
+    );
+
+    // Dégradation si le vendeur n'existe plus dans la partie
+    if (atWarWithSeller || sellerFullySanctioned || !seller) {
+      applyWeaponDegradation(weapon);
     }
   }
 }

@@ -72,6 +72,7 @@ export class EcoWarRoomManager {
   private readonly rooms: Map<string, Room> = new Map();
   private readonly socketPresence: Map<string, string> = new Map();
   private readonly actionTimerRemaining: Map<string, number> = new Map();
+  private readonly roomPreviousPhases: Map<string, string> = new Map();
 
   constructor(io: Namespace<EcoWarClientToServerEvents, EcoWarServerToClientEvents>) {
     this.io = io;
@@ -704,6 +705,18 @@ export class EcoWarRoomManager {
   // ─── Actor Snapshot Handler ──────────────────────────────────
 
   private handleActorSnapshot(room: Room, snapshot: EcoWarSnapshot): void {
+    const prevPhase = this.roomPreviousPhases.get(room.code);
+    const currPhase = snapshot.value as string;
+    this.roomPreviousPhases.set(room.code, currPhase);
+
+    // Emit journal:headlines when entering marketEvent phase (tech spec §4 S2C events)
+    if (currPhase === 'marketEvent' && prevPhase !== 'marketEvent') {
+      const headlines = snapshot.context.journalHeadlines;
+      if (headlines.length > 0) {
+        this.io.to(room.code).emit('journal:headlines', { headlines });
+      }
+    }
+
     this.syncActionTimer(room, snapshot);
     this.schedulePhaseAdvance(room, snapshot);
     this.broadcastState(room);
@@ -712,22 +725,34 @@ export class EcoWarRoomManager {
   // ─── Action Timer ────────────────────────────────────────────
 
   private syncActionTimer(room: Room, snapshot: EcoWarSnapshot): void {
-    if (snapshot.value === 'actionSelection') {
+    if (snapshot.value !== 'actionSelection') {
+      this.stopActionTimer(room);
+      return;
+    }
+
+    // Pas de timer global : on attend que tout le monde joue librement.
+    // Dès qu'il ne reste QU'UN SEUL joueur à soumettre → 10 minutes max pour lui.
+    const activePlayers = Array.from(snapshot.context.players.values()).filter(p => !p.abandoned);
+    const notSubmitted = activePlayers.filter(p => !p.actionsSubmitted).length;
+
+    if (notSubmitted === 1 && activePlayers.length > 1) {
+      // Dernier joueur : démarrer le countdown 10 min si pas déjà en cours
       if (!room.actionTimerInterval) {
-        this.startActionTimer(room);
+        this.startActionTimer(room, 600);
       }
     } else {
+      // Plusieurs joueurs pas encore soumis — pas de timer
       this.stopActionTimer(room);
     }
   }
 
-  private startActionTimer(room: Room): void {
+  private startActionTimer(room: Room, seconds: number): void {
     this.stopActionTimer(room);
 
     const snapshot = room.actor.getSnapshot();
     if (snapshot.value !== 'actionSelection') return;
 
-    let remaining = snapshot.context.config.actionTimerSeconds;
+    let remaining = seconds;
     this.actionTimerRemaining.set(room.code, remaining);
 
     room.actionTimerInterval = setInterval(() => {
@@ -830,7 +855,7 @@ export class EcoWarRoomManager {
     }
 
     const activeWars: PublicWarInfo[] = context.activeWars
-      .filter(w => w.status === 'active')
+      .filter(w => w.status === 'active' || w.status === 'armistice')
       .map(w => ({
         id: w.id,
         attackerName: context.players.get(w.attackerId)?.countryName || '',
@@ -839,6 +864,7 @@ export class EcoWarRoomManager {
         defenderId: w.defenderId,
         duration: w.duration,
         status: w.status,
+        armisticeProposedBy: w.armisticeProposedBy,
       }));
 
     const pendingThreats: PublicThreatInfo[] = context.activeThreats
@@ -867,7 +893,19 @@ export class EcoWarRoomManager {
       marketEvent: context.marketEvents[0] || null,
       journalHeadlines: context.journalHeadlines,
       pendingThreats,
-      activeSanctions: [],
+      activeSanctions: (() => {
+        const seen = new Set<string>();
+        const result: { targetId: string; imposedBy: string; type: 'trade' | 'tourism' | 'full' }[] = [];
+        for (const [, player] of context.players) {
+          for (const s of player.activeSanctions) {
+            if (!seen.has(s.id)) {
+              seen.add(s.id);
+              result.push({ targetId: s.targetId, imposedBy: s.imposedBy, type: s.type });
+            }
+          }
+        }
+        return result;
+      })(),
     };
   }
 
@@ -996,6 +1034,7 @@ export class EcoWarRoomManager {
       liveRoom.disconnectTimers.clear();
       liveRoom.actor.stop();
       this.rooms.delete(liveRoom.code);
+      this.roomPreviousPhases.delete(liveRoom.code);
     }, EMPTY_ROOM_CLEANUP_MS);
   }
 

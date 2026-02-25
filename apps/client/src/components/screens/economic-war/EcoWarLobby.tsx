@@ -398,6 +398,7 @@ function ActionSelectionView({ game }: { game: GameHook }) {
         timeRemaining={game.timer}
         onSubmit={game.submitActions}
         hasSubmitted={hasSubmitted}
+        activeWars={pub.activeWars}
       />
 
       {/* Active wars & threats summary */}

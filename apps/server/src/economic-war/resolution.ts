@@ -6,7 +6,7 @@
 import type { ResolutionEntry, PlayerAction } from '@undercover/shared';
 import type { EcoWarGameContext } from './types.js';
 import { resolveSabotageActions } from './espionage.js';
-import { resolveWars } from './military.js';
+import { resolveWars, declareWar, degradeUnmaintainedWeapons } from './military.js';
 import { collectIncome, calculateMaintenanceCosts } from './production.js';
 import { updatePopulation, updatePollution } from './population.js';
 import { resolveCommerce } from './commerce.js';
@@ -152,8 +152,6 @@ function resolveWarDeclarations(
       );
       if (alreadyAtWar) continue;
 
-      // Import declareWar dynamically to avoid circular deps
-      const { declareWar } = require('./military.js');
       const war = declareWar(attacker, defender, context);
 
       entries.push({
@@ -222,6 +220,9 @@ function resolveScores(context: EcoWarGameContext): ResolutionEntry[] {
 
 function tickTemporaryEffects(context: EcoWarGameContext): void {
   for (const [, player] of context.players) {
+    if (!player.abandoned) {
+      degradeUnmaintainedWeapons(player, context);
+    }
     player.activeEffects = player.activeEffects.filter(effect => {
       effect.remainingTurns--;
       return effect.remainingTurns > 0;
@@ -231,6 +232,12 @@ function tickTemporaryEffects(context: EcoWarGameContext): void {
   // Tick war durations and check for ended wars
   context.activeWars = context.activeWars.filter(war => {
     return war.status === 'active';
+  });
+
+  // Clean up expired or resolved threats
+  context.activeThreats = context.activeThreats.filter(t => {
+    if (t.status !== 'pending') return false;
+    return context.currentRound <= t.deadlineRound;
   });
 
   // Tick region resistance

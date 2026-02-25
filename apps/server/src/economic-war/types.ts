@@ -83,6 +83,7 @@ export interface ServerPlayerState {
   gdp: number;
   influence: number;
   score: number;
+  accumulatedBanPenalty: number;  // GDD: -5% influence per tourism ban imposed
 
   // ─── Private Info ───
   espionageResults: EspionageResult[];

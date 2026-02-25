@@ -35,20 +35,10 @@ export function resolveSabotageActions(
       const target = players.get(action.targetPlayerId);
       if (!target) continue;
 
-      // Check if target is defending
-      if (defendingPlayerIds.has(target.id)) {
-        entries.push({
-          step: 'sabotage',
-          playerId: target.id,
-          description: `${target.countryName} a bloqué une tentative de sabotage grâce à sa défense active !`,
-          icon: '🛡️',
-          positive: true,
-        });
-        // Attacker still pays cost
-        const cost = Math.round(attacker.gdp * SABOTAGE_COST_RATE);
-        attacker.money -= cost;
-        continue;
-      }
+      // La défense réduit les dégâts de 60% (au lieu de blocage total)
+      // Cela rend la défense utile mais pas dominante pour 1 slot d'action
+      const isDefending = defendingPlayerIds.has(target.id);
+      const DEFENSE_DAMAGE_REDUCTION = 0.60;
 
       // Pay sabotage cost
       const cost = Math.round(attacker.gdp * SABOTAGE_COST_RATE);
@@ -65,7 +55,9 @@ export function resolveSabotageActions(
       if (succeeded) {
         // Step 2a: Visibility roll
         const outcome = getVisibilityOutcome(diff);
-        const damage = randomBetween(SABOTAGE_DAMAGE_MIN, SABOTAGE_DAMAGE_MAX);
+        // Défense active : réduit les dégâts de 60%
+        const rawDamage = randomBetween(SABOTAGE_DAMAGE_MIN, SABOTAGE_DAMAGE_MAX);
+        const damage = isDefending ? rawDamage * (1 - DEFENSE_DAMAGE_REDUCTION) : rawDamage;
         const duration = randomIntBetween(SABOTAGE_DURATION_MIN, SABOTAGE_DURATION_MAX);
 
         // Apply damage as temporary effect
@@ -96,12 +88,26 @@ export function resolveSabotageActions(
         // Record result for both sides
         target.espionageResults.push(espResult);
 
+        if (isDefending) {
+          // Notify defender that their defenses reduced damage
+          target.notifications.push({
+            id: uuid(),
+            type: 'sabotage_suffered',
+            title: 'Défenses actives — Dégâts réduits',
+            message: `Un sabotage a frappé votre ${action.sector || 'infrastructure'} mais vos défenses ont absorbé 60% des dégâts (-${Math.round(damage)}%).`,
+            icon: '🛡️',
+            severity: 'warning',
+            round: 0,
+            read: false,
+          });
+        }
+
         if (outcome === 'success_invisible') {
           entries.push({
             step: 'sabotage',
             playerId: target.id,
-            description: `${target.countryName} subit un sabotage mystérieux sur ${action.sector || 'son infrastructure'} (-${damage}%, ${duration} tours)`,
-            icon: '💥',
+            description: `${target.countryName} subit un sabotage mystérieux sur ${action.sector || 'son infrastructure'} (-${Math.round(damage)}%, ${duration} tours)${isDefending ? ' — Défenses actives (-60% dégâts)' : ''}`,
+            icon: isDefending ? '🛡️' : '💥',
             positive: false,
           });
         } else if (outcome === 'success_suspicion') {

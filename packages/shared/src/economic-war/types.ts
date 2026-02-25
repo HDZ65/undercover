@@ -366,6 +366,7 @@ export type ActionType =
   | 'sabotage'
   | 'defend'
   | 'war'
+  | 'armistice'
   | 'bombardment'
   | 'nuclear'
   | 'buildMonument'
@@ -400,6 +401,7 @@ export interface PlayerAction {
   transportType?: 'roads' | 'ports' | 'airports';
   infrastructureTarget?: InfrastructureType;
   monumentName?: string;
+  militaryUpgrade?: boolean; // investir dans les forces armées (+5 niveaux)
 }
 
 // ─── Resolution Log ────────────────────────────────────────────
@@ -489,6 +491,8 @@ export type NotificationType =
   | 'sabotage_detected'
   | 'war_declared'
   | 'war_ended'
+  | 'armistice_offer'
+  | 'armistice_concluded'
   | 'threat_received'
   | 'threat_resolved'
   | 'trade_received'
@@ -541,6 +545,7 @@ export interface PublicWarInfo {
   defenderId: string;
   duration: number;
   status: War['status'];
+  armisticeProposedBy: string | null;
 }
 
 export interface PublicThreatInfo {

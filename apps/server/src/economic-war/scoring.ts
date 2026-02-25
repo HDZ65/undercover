@@ -1,17 +1,25 @@
 /**
  * Empire du Commerce — Scoring & Leaderboard
- * Score = 50% GDP + 30% (Happiness × Population) + 20% Influence
+ * Score = 45% PIB + 30% (Force militaire × 10) + 25% (Bonheur × 20)
+ * Suppression de la composante population×bonheur qui créait un déséquilibre ×30 entre pays.
  */
 
 import type { LeaderboardEntry, WealthTier } from '@undercover/shared';
-import { SCORE_WEIGHT_GDP, SCORE_WEIGHT_HAPPINESS_POP, SCORE_WEIGHT_INFLUENCE } from './constants';
+import {
+  SCORE_WEIGHT_GDP,
+  SCORE_WEIGHT_MILITARY,
+  SCORE_WEIGHT_HAPPINESS,
+  SCORE_MILITARY_SCALE,
+  SCORE_HAPPINESS_SCALE,
+} from './constants';
 import type { ServerPlayerState } from './types';
+import { calculateEffectiveForce } from './military.js';
 
 export function calculateScore(player: ServerPlayerState): number {
-  const gdpComponent = player.gdp * SCORE_WEIGHT_GDP;
-  const hapPopComponent = (player.population.happinessLevel / 100) * player.population.total * 100 * SCORE_WEIGHT_HAPPINESS_POP;
-  const influenceComponent = player.influence * SCORE_WEIGHT_INFLUENCE;
-  return Math.round(gdpComponent + hapPopComponent + influenceComponent);
+  const gdpComponent      = player.gdp * SCORE_WEIGHT_GDP;
+  const militaryComponent = calculateEffectiveForce(player) * SCORE_MILITARY_SCALE * SCORE_WEIGHT_MILITARY;
+  const happinessComponent = player.population.happinessLevel * SCORE_HAPPINESS_SCALE * SCORE_WEIGHT_HAPPINESS;
+  return Math.round(gdpComponent + militaryComponent + happinessComponent);
 }
 
 export function calculateGDP(player: ServerPlayerState): number {
@@ -62,14 +70,18 @@ export function calculateInfluence(player: ServerPlayerState, organizationCount:
     influence += (player.population.happinessLevel - 60) * 2;
   }
 
-  return Math.round(influence);
+  // GDD §9: accumulated influence penalty from tourism bans imposed (-5% per ban)
+  influence -= player.accumulatedBanPenalty || 0;
+
+  return Math.max(0, Math.round(influence));
 }
 
 export function getWealthTier(score: number): WealthTier {
-  if (score >= 50000) return 'hegemon';
-  if (score >= 30000) return 'superpower';
-  if (score >= 15000) return 'developed';
-  if (score >= 5000) return 'emerging';
+  // Seuils recalibrés pour la nouvelle formule (mi-partie ~2000-4000, fin ~6000-12000)
+  if (score >= 15000) return 'hegemon';
+  if (score >= 8000)  return 'superpower';
+  if (score >= 4000)  return 'developed';
+  if (score >= 1500)  return 'emerging';
   return 'startup';
 }
 
@@ -86,9 +98,7 @@ export function buildLeaderboard(
       countryFlag: player.countryFlag,
       score: player.score,
       gdp: player.gdp,
-      happinessPopulation: Math.round(
-        (player.population.happinessLevel / 100) * player.population.total * 100,
-      ),
+      happinessPopulation: player.population.happinessLevel, // bonheur brut pour l'affichage
       influence: player.influence,
       wealthTier: getWealthTier(player.score),
       rank: 0, // set below

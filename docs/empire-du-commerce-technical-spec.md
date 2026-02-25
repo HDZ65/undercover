@@ -297,11 +297,11 @@ EcoWarLobby.tsx (composant racine, switch sur phase)
 #### LobbyView
 - Liste des joueurs connectés avec statut (host badge, prêt/pas prêt)
 - Configuration partie (host seulement) :
-  - Nombre de tours (10-50, défaut 50)
+  - **Fin de partie : ≤2 joueurs actifs** (pas de limite de tours — GDD §3)
   - Timer par tour (30s-180s, défaut 90s)
   - Capital de départ
   - Actions par tour (4-8, défaut 6)
-  - Victoire anticipée (on/off + seuil)
+  - Victoire anticipée (on/off + seuil de score, désactivé par défaut)
 - Bouton « Copier le code » pour inviter
 - Bouton « Lancer la partie » (host, minimum 4 joueurs)
 
@@ -368,16 +368,17 @@ EcoWarLobby.tsx (composant racine, switch sur phase)
 **Diplomatie & Organisations**
 | Événement | Payload | Description |
 |-----------|---------|-------------|
-| `org:create` | `{ name, type, memberIds }` | Proposer création d'orga |
+| `org:create` | `{ name, type, invitedPlayerIds }` | Proposer création d'orga |
 | `org:vote` | `{ orgId, voteId, vote }` | Voter dans une orga |
 | `org:leave` | `{ orgId }` | Quitter une orga |
-| `org:proposeVote` | `{ orgId, proposal }` | Soumettre un vote |
+| `org:proposeVote` | `{ orgId, type, description }` | Soumettre un vote |
 | `sanction:apply` | `{ targetId, type }` | Sanctionner un joueur |
+| `sanction:lift` | `{ sanctionId }` | Lever une sanction |
 
 **Menaces & Bombardement**
 | Événement | Payload | Description |
 |-----------|---------|-------------|
-| `threat:declare` | `{ targetId, demand, infrastructure }` | Menacer de bombarder |
+| `threat:declare` | `{ targetId, demand, targetInfrastructure }` | Menacer de bombarder |
 | `threat:respond` | `{ threatId, accepted }` | Répondre à une menace |
 | `threat:execute` | `{ threatId }` | Exécuter le bombardement |
 | `threat:withdraw` | `{ threatId }` | Retirer la menace (bluff) |
@@ -780,7 +781,7 @@ Client :
 
 Quand tous les joueurs cliquent "Tour suivant" :
   → XState : roundSummary → preparation (Tour N+1)
-  → OU roundSummary → victory (si tour 50 atteint ou seuil dépassé)
+  → OU roundSummary → victory (si ≤2 joueurs actifs, ou seuil de victoire anticipée dépassé)
 ```
 
 ### Phase 4 — Victoire

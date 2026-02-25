@@ -12,9 +12,9 @@ import type {
   CountryProfile,
   TradeOffer,
   Threat,
-  Organization,
   ResolutionEntry,
   GameNotification,
+  JournalHeadline,
 } from '@undercover/shared';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
@@ -52,6 +52,7 @@ export function useEcoWarSocket() {
   const [chatMessages, setChatMessages] = useState<Array<{ from: string; fromName: string; channel: string; message: string; timestamp: number }>>([]);
   const [resolutionLog, setResolutionLog] = useState<ResolutionEntry[]>([]);
   const [notifications, setNotifications] = useState<GameNotification[]>([]);
+  const [journalHeadlines, setJournalHeadlines] = useState<JournalHeadline[]>([]);
 
   // ─── Socket Connection ───────────────────────────────────────
 
@@ -178,6 +179,11 @@ export function useEcoWarSocket() {
     // Notification events
     socket.on('notification:alert', (data) => {
       setNotifications(prev => [...prev, data]);
+    });
+
+    // Journal headlines (emitted when entering marketEvent phase)
+    socket.on('journal:headlines', (data) => {
+      setJournalHeadlines(data.headlines);
     });
 
     // Clear resolution log on phase change
@@ -342,6 +348,7 @@ export function useEcoWarSocket() {
     chatMessages,
     resolutionLog,
     notifications,
+    journalHeadlines,
 
     // Room
     createRoom,

@@ -5,8 +5,7 @@ import type { Organization, OrganizationType, PublicPlayerInfo } from '@undercov
 const ORG_TYPE_LABELS: Record<OrganizationType, { label: string; icon: string; desc: string }> = {
   commercial: { label: 'Commerciale', icon: '📦', desc: 'Réduit les frais de transaction entre membres' },
   military: { label: 'Militaire', icon: '⚔️', desc: 'Défense mutuelle et intervention armée' },
-  scientific: { label: 'Scientifique', icon: '🔬', desc: 'Partage de recherche et brevets' },
-  political: { label: 'Politique', icon: '🏛️', desc: 'Sanctions collectives et diplomatie' },
+  diplomatic: { label: 'Diplomatique', icon: '🏛️', desc: 'Médiation, influence et sanctions collectives' },
 }
 
 interface OrganizationPanelProps {
@@ -34,6 +33,9 @@ export function OrganizationPanel({
   const [newName, setNewName] = useState('')
   const [newType, setNewType] = useState<OrganizationType>('commercial')
   const [selectedMembers, setSelectedMembers] = useState<string[]>([])
+  const [proposeVoteOrgId, setProposeVoteOrgId] = useState<string | null>(null)
+  const [voteType, setVoteType] = useState('tradeAgreement')
+  const [voteDescription, setVoteDescription] = useState('')
 
   const myOrgs = organizations.filter(o => currentPlayerId && o.memberIds.includes(currentPlayerId))
   const otherPlayers = players.filter(p => p.id !== currentPlayerId && !p.abandoned)
@@ -167,6 +169,59 @@ export function OrganizationPanel({
                             </div>
                           </div>
                         ))}
+
+                        {/* Propose vote */}
+                        {proposeVoteOrgId === org.id ? (
+                          <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-2 space-y-1.5">
+                            <select
+                              value={voteType}
+                              onChange={e => setVoteType(e.target.value)}
+                              className="w-full px-2 py-1 rounded text-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                            >
+                              <option value="tradeAgreement">Accord commercial</option>
+                              <option value="jointInvestment">Investissement commun</option>
+                              <option value="militaryIntervention">Intervention militaire</option>
+                              <option value="expelMember">Expulser un membre</option>
+                              <option value="structuralChange">Modification structurelle</option>
+                            </select>
+                            <input
+                              type="text"
+                              value={voteDescription}
+                              onChange={e => setVoteDescription(e.target.value)}
+                              placeholder="Description du vote..."
+                              maxLength={120}
+                              className="w-full px-2 py-1 rounded text-[10px] border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                            />
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => {
+                                  if (voteDescription.trim()) {
+                                    onProposeVote(org.id, voteType, voteDescription.trim())
+                                    setProposeVoteOrgId(null)
+                                    setVoteDescription('')
+                                  }
+                                }}
+                                disabled={!voteDescription.trim()}
+                                className="flex-1 py-1 rounded text-[10px] font-bold text-white bg-amber-500 disabled:opacity-40"
+                              >
+                                Soumettre
+                              </button>
+                              <button
+                                onClick={() => setProposeVoteOrgId(null)}
+                                className="flex-1 py-1 rounded text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-slate-200 dark:bg-slate-700"
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setProposeVoteOrgId(org.id)}
+                            className="w-full py-1.5 rounded-lg text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40"
+                          >
+                            + Proposer un vote
+                          </button>
+                        )}
                       </div>
                     )
                   })

@@ -4,6 +4,7 @@ import type {
   PlayerAction,
   ActionType,
   PublicPlayerInfo,
+  PublicWarInfo,
   IndustrySector,
   ResearchBranch,
   InfrastructureType,
@@ -25,6 +26,7 @@ const ACTION_CATEGORIES: { type: ActionType; label: string; icon: string; descri
   { type: 'buildMonument', label: 'Monument', icon: '🏛️', description: 'Construire un monument' },
   { type: 'developNuclear', label: 'Nucléaire', icon: '☢️', description: 'Programme nucléaire' },
   { type: 'diplomacy', label: 'Diplomatie', icon: '🕊️', description: 'Actions diplomatiques' },
+  { type: 'armistice', label: 'Armistice', icon: '🤝', description: 'Proposer la paix (après 5 tours de guerre)' },
 ]
 
 const SECTOR_OPTIONS: { value: IndustrySector; label: string }[] = [
@@ -77,6 +79,7 @@ interface ActionSelectorProps {
   timeRemaining: number | null
   onSubmit: (actions: PlayerAction[]) => void
   hasSubmitted: boolean
+  activeWars?: PublicWarInfo[]
 }
 
 export function ActionSelector({
@@ -86,6 +89,7 @@ export function ActionSelector({
   timeRemaining,
   onSubmit,
   hasSubmitted,
+  activeWars = [],
 }: ActionSelectorProps) {
   const [actions, setActions] = useState<PlayerAction[]>([])
   const [editingSlot, setEditingSlot] = useState<number | null>(null)
@@ -198,6 +202,8 @@ export function ActionSelector({
             draft={draftAction}
             setDraft={setDraftAction}
             otherPlayers={otherPlayers}
+            activeWars={activeWars}
+            currentPlayerId={currentPlayerId}
             onConfirm={addAction}
             onCancel={() => { setEditingSlot(null); setDraftAction({}) }}
           />
@@ -223,6 +229,8 @@ function ActionDetailForm({
   draft,
   setDraft,
   otherPlayers,
+  activeWars,
+  currentPlayerId,
   onConfirm,
   onCancel,
 }: {
@@ -230,10 +238,16 @@ function ActionDetailForm({
   draft: Partial<PlayerAction>
   setDraft: (d: Partial<PlayerAction>) => void
   otherPlayers: PublicPlayerInfo[]
+  activeWars: PublicWarInfo[]
+  currentPlayerId: string | null
   onConfirm: (a: PlayerAction) => void
   onCancel: () => void
 }) {
   const cat = ACTION_CATEGORIES.find((c) => c.type === actionType)
+
+  const myWars = activeWars.filter(
+    (w) => w.attackerId === currentPlayerId || w.defenderId === currentPlayerId,
+  )
 
   const canConfirm = (() => {
     switch (actionType) {
@@ -242,11 +256,12 @@ function ActionDetailForm({
       case 'diplomacy':
         return true
       case 'invest':
-        return !!draft.sector
+        return !!draft.sector || !!draft.militaryUpgrade
       case 'research':
         return !!draft.researchBranch
       case 'sabotage':
       case 'war':
+      case 'armistice':
       case 'bombardment':
       case 'nuclear':
       case 'trade':
@@ -283,21 +298,38 @@ function ActionDetailForm({
 
       {/* Sector picker for invest */}
       {actionType === 'invest' && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Secteur</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {SECTOR_OPTIONS.map((s) => (
-              <PickerButton key={s.value} label={s.label} selected={draft.sector === s.value}
-                onClick={() => setDraft({ ...draft, sector: s.value })} />
-            ))}
-          </div>
-          <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mt-2">Tier usine</p>
-          <div className="flex gap-1.5">
-            {TIER_OPTIONS.map((t) => (
-              <PickerButton key={t.value} label={t.label} selected={draft.factoryTier === t.value}
-                onClick={() => setDraft({ ...draft, factoryTier: t.value })} />
-            ))}
-          </div>
+        <div className="space-y-2">
+          {/* Option : Forces armées */}
+          <button
+            className={`w-full text-left px-3 py-2 rounded-lg border text-xs font-semibold transition-colors ${
+              draft.militaryUpgrade
+                ? 'border-red-400 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300'
+                : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-red-300'
+            }`}
+            onClick={() => setDraft({ ...draft, militaryUpgrade: !draft.militaryUpgrade, sector: undefined, factoryTier: undefined })}
+          >
+            ⚔️ Forces armées <span className="text-slate-500 font-normal">(+5 niveaux, coût croissant)</span>
+          </button>
+
+          {/* Option : Usine */}
+          {!draft.militaryUpgrade && (
+            <>
+              <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">Secteur usine</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {SECTOR_OPTIONS.map((s) => (
+                  <PickerButton key={s.value} label={s.label} selected={draft.sector === s.value}
+                    onClick={() => setDraft({ ...draft, sector: s.value, militaryUpgrade: false })} />
+                ))}
+              </div>
+              <p className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mt-2">Tier usine</p>
+              <div className="flex gap-1.5">
+                {TIER_OPTIONS.map((t) => (
+                  <PickerButton key={t.value} label={t.label} selected={draft.factoryTier === t.value}
+                    onClick={() => setDraft({ ...draft, factoryTier: t.value })} />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -366,6 +398,34 @@ function ActionDetailForm({
             maxLength={40}
             className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
+        </div>
+      )}
+
+      {/* Armistice target */}
+      {actionType === 'armistice' && (
+        <div className="space-y-1.5">
+          <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
+            Proposez la paix à un adversaire. Si l'adversaire soumet la même action ce tour, la guerre prend fin immédiatement.
+          </p>
+          {myWars.length === 0 ? (
+            <p className="text-xs text-red-500">Vous n'êtes en guerre avec personne.</p>
+          ) : (
+            <div className="space-y-1">
+              {myWars.map((w) => {
+                const opponentId = w.attackerId === currentPlayerId ? w.defenderId : w.attackerId
+                const opponentName = w.attackerId === currentPlayerId ? w.defenderName : w.attackerName
+                const alreadyProposed = w.armisticeProposedBy === currentPlayerId
+                return (
+                  <PickerButton
+                    key={w.id}
+                    label={`${opponentName}${alreadyProposed ? ' (proposé ✓)' : ''} — tour ${w.duration}`}
+                    selected={draft.targetPlayerId === opponentId}
+                    onClick={() => setDraft({ ...draft, targetPlayerId: opponentId })}
+                  />
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 

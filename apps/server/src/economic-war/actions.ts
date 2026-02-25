@@ -10,9 +10,10 @@ import { COUNTRY_PROFILES } from './countryProfiles.js';
 import { resolveRound } from './resolution.js';
 import { doResearch } from './research.js';
 import { createFactory, getFactoryCost, upgradeInfrastructure, upgradeTransport } from './production.js';
-import { createWeapon } from './military.js';
+import { createWeapon, calculateEffectiveForce } from './military.js';
 import { createOrganization, castVote, leaveOrganization, proposeVote } from './organizations.js';
 import { applySanction } from './commerce.js';
+import { WAR_ARMISTICE_MIN_TURNS } from './constants.js';
 import { randomUUID as uuid } from 'crypto';
 
 type EcoWarEvent =
@@ -265,6 +266,7 @@ function createNewPlayer(id: string, name: string, token: string, socketId: stri
     gdp: 0,
     influence: 0,
     score: 0,
+    accumulatedBanPenalty: 0,
     espionageResults: [],
     incomingTrades: [],
     notifications: [],
@@ -354,6 +356,16 @@ function processImmediateActions(
             player.tools.tier = action.toolTier;
           }
         }
+        if (action.militaryUpgrade) {
+          const currentLevel = player.military.armedForces;
+          // Coût croissant : ~332 au niveau 10, ~654 au niveau 50, ~1016 au niveau 80
+          const cost = Math.round(300 + Math.pow(currentLevel, 1.5));
+          if (player.money >= cost && currentLevel < 100) {
+            player.money -= cost;
+            player.military.armedForces = Math.min(100, currentLevel + 5);
+            player.military.effectiveForce = calculateEffectiveForce(player);
+          }
+        }
         break;
 
       case 'research':
@@ -411,8 +423,64 @@ function processImmediateActions(
             roundProposed: context.currentRound,
           };
           context.activeTrades.push(trade);
-          const target = context.players.get(trade.toId);
-          if (target) target.incomingTrades.push(trade);
+          const tradeTarget = context.players.get(trade.toId);
+          if (tradeTarget) tradeTarget.incomingTrades.push(trade);
+        }
+        break;
+
+      case 'armistice':
+        if (action.targetPlayerId) {
+          const war = context.activeWars.find(
+            w => w.status === 'active' &&
+              ((w.attackerId === player.id && w.defenderId === action.targetPlayerId) ||
+               (w.defenderId === player.id && w.attackerId === action.targetPlayerId)),
+          );
+          if (war && war.duration >= WAR_ARMISTICE_MIN_TURNS) {
+            if (war.armisticeProposedBy === action.targetPlayerId) {
+              // Opponent already proposed → both agree → armistice
+              war.status = 'armistice';
+              const opponentName = context.players.get(action.targetPlayerId)?.countryName || 'votre adversaire';
+              player.notifications.push({
+                id: uuid(),
+                type: 'armistice_concluded',
+                title: 'Armistice conclu',
+                message: `La paix est rétablie avec ${opponentName}.`,
+                icon: '🕊️',
+                severity: 'success',
+                round: context.currentRound,
+                read: false,
+              });
+              const opponent = context.players.get(action.targetPlayerId);
+              if (opponent) {
+                opponent.notifications.push({
+                  id: uuid(),
+                  type: 'armistice_concluded',
+                  title: 'Armistice conclu',
+                  message: `La paix est rétablie avec ${player.countryName}.`,
+                  icon: '🕊️',
+                  severity: 'success',
+                  round: context.currentRound,
+                  read: false,
+                });
+              }
+            } else if (!war.armisticeProposedBy) {
+              // First proposal
+              war.armisticeProposedBy = player.id;
+              const opponent = context.players.get(action.targetPlayerId);
+              if (opponent) {
+                opponent.notifications.push({
+                  id: uuid(),
+                  type: 'armistice_offer',
+                  title: 'Proposition d\'armistice',
+                  message: `${player.countryName} vous propose un armistice. Acceptez via l'action "Armistice" ce même tour.`,
+                  icon: '🤝',
+                  severity: 'info',
+                  round: context.currentRound,
+                  read: false,
+                });
+              }
+            }
+          }
         }
         break;
     }

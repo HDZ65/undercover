@@ -97,11 +97,11 @@ function getSanctionSurcharge(
   to: ServerPlayerState,
   _context: EcoWarGameContext,
 ): number {
-  // Check for partial sanctions (suspicion-based)
-  const suspicionSanctions = from.activeSanctions.filter(
-    s => s.targetId === to.id && s.evidence === 'suspicion',
+  // Apply surcharge for any sanction with evidence (proof or suspicion)
+  const evidencedSanctions = from.activeSanctions.filter(
+    s => s.targetId === to.id && s.evidence !== 'none',
   );
-  if (suspicionSanctions.length > 0) {
+  if (evidencedSanctions.length > 0) {
     return SANCTION_TRADE_SURCHARGE;
   }
   return 0;
@@ -173,6 +173,9 @@ export function applySanction(
   if (type === 'tourism') {
     target.tourism.bannedBy.push(imposer.id);
     imposer.tourism.bannedCountries.push(target.id);
+    // GDD §9: coût diplomatique fixe de -5% d'influence pour le pays qui bannit
+    const penalty = Math.round(imposer.influence * 0.05);
+    imposer.accumulatedBanPenalty = (imposer.accumulatedBanPenalty || 0) + penalty;
   }
 
   return sanction;
