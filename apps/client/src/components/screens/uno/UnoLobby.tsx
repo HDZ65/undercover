@@ -640,6 +640,7 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
       return <LandingView />
     case 'lobby':
       return <LobbyView />
+    case 'dealing':
     case 'playerTurn':
     case 'colorChoice':
     case 'challengeWD4':
