@@ -47,14 +47,12 @@ export class PokerRoomManager {
 
   constructor(private readonly io: Server<ClientToServerEvents, ServerToClientEvents>) {}
 
-  createTable(socket: ServerSocket, data: { playerName: string; config?: Partial<TableConfig> }): void {
+  createTable(socket: ServerSocket, data: { playerName: string; config?: Partial<TableConfig>; buyIn?: number }): void {
     this.leaveTable(socket);
-
     try {
       const tableId = this.tableManager.createTable(data.config);
       const actor = createActor(pokerMachine);
       actor.start();
-
       const room: PokerTableRoom = {
         id: tableId,
         actor,
@@ -64,14 +62,45 @@ export class PokerRoomManager {
           ...data.config,
         },
       };
-
       this.rooms.set(tableId, room);
       actor.subscribe(() => {
         this.broadcastState(room);
       });
 
-      this.broadcastTableList();
-      socket.emit('poker:tableList', { tables: [{ id: room.id, playerCount: room.players.size, config: room.config }] });
+      // Auto-join the creator to the table
+      const playerId = randomUUID();
+      const playerToken = randomUUID();
+      const buyIn = data.buyIn ?? room.config.minBuyIn;
+
+      this.tableManager.joinTable(
+        room.id,
+        playerId,
+        normalizeName(data.playerName),
+        buyIn,
+      ).then((joinResult) => {
+        if (!joinResult.success) {
+          this.broadcastTableList();
+          socket.emit('poker:tableList', { tables: [{ id: room.id, playerCount: room.players.size, config: room.config }] });
+          return;
+        }
+
+        room.players.set(playerId, {
+          id: playerId,
+          name: normalizeName(data.playerName),
+          socketId: socket.id,
+          playerToken,
+          chipStack: buyIn,
+        });
+
+        this.socketPresence.set(socket.id, { tableId: room.id, playerId });
+        socket.join(room.id);
+        this.broadcastState(room);
+        this.broadcastTableList();
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : 'Failed to join table after creation.';
+        socket.emit('poker:error', { message, code: 'AUTO_JOIN_FAILED' });
+        this.broadcastTableList();
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to create table.';
       socket.emit('poker:error', { message, code: 'TABLE_CREATE_FAILED' });
@@ -225,19 +254,16 @@ export class PokerRoomManager {
     }
 
     const sequenceNumber = payload?.sequenceNumber;
-    if (!Number.isInteger(sequenceNumber)) {
-      socket.emit('poker:error', { message: 'Missing sequence number.', code: 'INVALID_SEQUENCE' });
-      return;
-    }
-
-    const snapshot = resolved.room.actor.getSnapshot();
-    const expected = snapshot.context.actionSequenceNumber + 1;
-    if (sequenceNumber !== expected) {
-      socket.emit('poker:error', {
-        message: `Invalid sequence number. Expected ${expected}.`,
-        code: 'INVALID_SEQUENCE',
-      });
-      return;
+    if (Number.isInteger(sequenceNumber)) {
+      const snapshot = resolved.room.actor.getSnapshot();
+      const expected = snapshot.context.actionSequenceNumber + 1;
+      if (sequenceNumber !== expected) {
+        socket.emit('poker:error', {
+          message: `Invalid sequence number. Expected ${expected}.`,
+          code: 'INVALID_SEQUENCE',
+        });
+        return;
+      }
     }
 
     if (action === 'raise') {
@@ -252,7 +278,7 @@ export class PokerRoomManager {
       playerId: resolved.player.id,
       action,
       amount: payload?.amount,
-      sequenceNumber,
+      sequenceNumber: sequenceNumber ?? 0,
     });
 
     this.io.to(resolved.room.id).emit('poker:action', {
@@ -324,27 +350,45 @@ export class PokerRoomManager {
 
   private broadcastState(room: PokerTableRoom): void {
     const snapshot = room.actor.getSnapshot();
-    const publicState = this.buildPublicState(snapshot);
-
+    const publicState = this.buildPublicState(snapshot, room);
     for (const player of room.players.values()) {
       if (!player.socketId) {
         continue;
       }
-
       const targetSocket = this.io.sockets.sockets.get(player.socketId);
       if (!targetSocket) {
         continue;
       }
 
-      const privateState = this.buildPrivateState(snapshot, player.id);
+      const privateState = this.buildPrivateState(snapshot, player.id, room);
       targetSocket.emit('poker:state', { publicState, privateState });
     }
   }
 
-  private buildPublicState(snapshot: PokerSnapshot): PokerPublicState {
+  private buildPublicState(snapshot: PokerSnapshot, room: PokerTableRoom): PokerPublicState {
     const context = snapshot.context;
     const activePlayer = context.players.find((player) => player.id === context.bettingEngineState.activePlayerId);
-
+    // When in lobby/waiting phase with no XState players, build player list from room.players
+    const players = context.players.length > 0
+      ? context.players.map((player) => ({
+          id: player.id,
+          name: player.name,
+          chipStack: player.chipStack,
+          status: player.status,
+          seatIndex: player.seatIndex,
+          currentBet: player.currentBet,
+          hasCards: Boolean(player.holeCards),
+          avatar: player.avatar,
+        }))
+      : [...room.players.values()].map((session, index) => ({
+          id: session.id,
+          name: session.name,
+          chipStack: session.chipStack,
+          status: 'active' as const,
+          seatIndex: index,
+          currentBet: 0,
+          hasCards: false,
+        }));
     return {
       phase: context.currentPhase,
       communityCards: [...context.communityCards],
@@ -353,22 +397,13 @@ export class PokerRoomManager {
       minRaise: context.bettingEngineState.minRaise,
       dealerSeatIndex: context.dealerSeatIndex,
       activeSeatIndex: activePlayer?.seatIndex ?? -1,
-      players: context.players.map((player) => ({
-        id: player.id,
-        name: player.name,
-        chipStack: player.chipStack,
-        status: player.status,
-        seatIndex: player.seatIndex,
-        currentBet: player.currentBet,
-        hasCards: Boolean(player.holeCards),
-        avatar: player.avatar,
-      })),
+      players,
       handNumber: context.handNumber,
       tableConfig: context.tableConfig,
     };
   }
 
-  private buildPrivateState(snapshot: PokerSnapshot, playerId: string): PokerPrivateState {
+  private buildPrivateState(snapshot: PokerSnapshot, playerId: string, room: PokerTableRoom): PokerPrivateState {
     const context = snapshot.context;
     const player = context.players.find((candidate) => candidate.id === playerId);
     const holeCards = [...(player?.holeCards ?? [])];
@@ -385,7 +420,6 @@ export class PokerRoomManager {
       } else {
         availableActions.push('call');
       }
-
       if (player.chipStack > callAmount) {
         availableActions.push('raise');
       }
@@ -393,7 +427,6 @@ export class PokerRoomManager {
         availableActions.push('allIn');
       }
     }
-
     let handStrength: string | undefined;
     if (holeCards.length === 2) {
       try {
@@ -403,13 +436,16 @@ export class PokerRoomManager {
       }
     }
 
+    // Use room session chipStack when player not yet in XState context
+    const roomSession = room.players.get(playerId);
+    const maxBetAmount = player?.chipStack ?? roomSession?.chipStack ?? 0;
     return {
       playerId,
       holeCards,
       handStrength,
       availableActions,
       minBetAmount: context.bettingEngineState.minRaise,
-      maxBetAmount: player?.chipStack ?? 0,
+      maxBetAmount,
     };
   }
 

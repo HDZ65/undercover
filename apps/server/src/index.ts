@@ -54,6 +54,7 @@ io.on('connection', (socket) => {
   socket.on('poker:sitOut', () => pokerRoomManager.sitOut(socket));
   socket.on('poker:sitIn', () => pokerRoomManager.sitIn(socket));
 
+  socket.on('poker:toggleStraddle', () => pokerRoomManager.toggleStraddle(socket));
   socket.on('poker:fold', ((data?: { sequenceNumber?: number }) => pokerRoomManager.handleAction(socket, 'fold', data)) as () => void);
   socket.on('poker:check', ((data?: { sequenceNumber?: number }) => pokerRoomManager.handleAction(socket, 'check', data)) as () => void);
   socket.on('poker:call', ((data?: { sequenceNumber?: number }) => pokerRoomManager.handleAction(socket, 'call', data)) as () => void);
