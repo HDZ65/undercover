@@ -15,6 +15,7 @@ import { OrganizationPanel } from './components/OrganizationPanel'
 import { ThreatModal } from './components/ThreatModal'
 import { ChatPanel } from './components/ChatPanel'
 import { WorldMap } from './components/WorldMap'
+import { StatsPanel } from './components/StatsPanel'
 
 interface EcoWarLobbyProps {
   onBack: () => void
@@ -335,6 +336,13 @@ function PreparationView({ game }: { game: GameHook }) {
   const pub = game.publicState!
   const priv = game.privateState
 
+  const activePlayers = pub.players.filter(p => !p.abandoned && p.connected)
+  const readyCount = activePlayers.filter(p => p.ready).length
+  const totalCount = activePlayers.length
+  const myPlayer = pub.players.find(p => p.id === game.connectionInfo.playerId)
+  const alreadyReady = myPlayer?.ready ?? false
+  const alreadyAbandoned = myPlayer?.abandoned ?? false
+
   return (
     <div className="space-y-4">
       <PhaseHeader round={pub.currentRound} title="Préparation" subtitle="Revenus collectés, état de votre empire" />
@@ -350,19 +358,41 @@ function PreparationView({ game }: { game: GameHook }) {
 
       <DiplomacyBar game={game} />
 
+      {/* Ready counter */}
+      <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <span className="font-bold text-emerald-600 dark:text-emerald-400">{readyCount}</span>
+        <span>/</span>
+        <span>{totalCount}</span>
+        <span>joueurs prêts</span>
+        <div className="flex gap-1 ml-1">
+          {activePlayers.map(p => (
+            <span key={p.id} title={p.name} className={`text-base ${p.ready ? 'grayscale-0' : 'grayscale opacity-40'}`}>
+              {p.countryFlag || '🏴'}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="flex gap-2">
         <button
           onClick={game.markReady}
-          className="flex-1 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 shadow-lg active:scale-[0.98] transition-transform"
+          disabled={alreadyReady}
+          className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-[0.98] ${
+            alreadyReady
+              ? 'bg-emerald-600/70 cursor-default opacity-80'
+              : 'bg-gradient-to-r from-amber-500 to-orange-600'
+          }`}
         >
-          Prêt
+          {alreadyReady ? '✓ En attente des autres joueurs...' : 'Prêt'}
         </button>
-        <button
-          onClick={game.abandon}
-          className="px-4 py-3 rounded-xl font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 active:scale-[0.98] transition-transform"
-        >
-          Abandonner
-        </button>
+        {!alreadyAbandoned && (
+          <button
+            onClick={game.abandon}
+            className="px-4 py-3 rounded-xl font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 active:scale-[0.98] transition-transform"
+          >
+            Abandonner
+          </button>
+        )}
       </div>
     </div>
   )
@@ -487,6 +517,13 @@ function RoundSummaryView({ game }: { game: GameHook }) {
   const pub = game.publicState!
   const priv = game.privateState
 
+  const activePlayers = pub.players.filter(p => !p.abandoned && p.connected)
+  const readyCount = activePlayers.filter(p => p.ready).length
+  const totalCount = activePlayers.length
+  const myPlayer = pub.players.find(p => p.id === game.connectionInfo.playerId)
+  const alreadyReady = myPlayer?.ready ?? false
+  const alreadyAbandoned = myPlayer?.abandoned ?? false
+
   return (
     <div className="space-y-4">
       <PhaseHeader
@@ -521,19 +558,41 @@ function RoundSummaryView({ game }: { game: GameHook }) {
 
       <DiplomacyBar game={game} />
 
+      {/* Ready counter */}
+      <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <span className="font-bold text-emerald-600 dark:text-emerald-400">{readyCount}</span>
+        <span>/</span>
+        <span>{totalCount}</span>
+        <span>joueurs prêts pour la manche suivante</span>
+        <div className="flex gap-1 ml-1">
+          {activePlayers.map(p => (
+            <span key={p.id} title={p.name} className={`text-base ${p.ready ? 'grayscale-0' : 'grayscale opacity-40'}`}>
+              {p.countryFlag || '🏴'}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="flex gap-2">
         <button
           onClick={game.markReady}
-          className="flex-1 py-3 rounded-xl font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 shadow-lg active:scale-[0.98] transition-transform"
+          disabled={alreadyReady}
+          className={`flex-1 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-[0.98] ${
+            alreadyReady
+              ? 'bg-emerald-600/70 cursor-default opacity-80'
+              : 'bg-gradient-to-r from-amber-500 to-orange-600'
+          }`}
         >
-          Prêt pour la manche suivante
+          {alreadyReady ? '✓ En attente des autres joueurs...' : 'Prêt pour la manche suivante'}
         </button>
-        <button
-          onClick={game.abandon}
-          className="px-4 py-3 rounded-xl font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 active:scale-[0.98] transition-transform"
-        >
-          Abandonner
-        </button>
+        {!alreadyAbandoned && (
+          <button
+            onClick={game.abandon}
+            className="px-4 py-3 rounded-xl font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 active:scale-[0.98] transition-transform"
+          >
+            Abandonner
+          </button>
+        )}
       </div>
     </div>
   )
@@ -597,10 +656,10 @@ function VictoryView({ game, onBack }: { game: GameHook; onBack: () => void }) {
 // ─── Diplomacy Bar ──────────────────────────────────────────
 
 function DiplomacyBar({ game }: { game: GameHook }) {
-  const [openModal, setOpenModal] = useState<'trade' | 'org' | 'threat' | 'chat' | 'map' | null>(null)
+  const [openModal, setOpenModal] = useState<'trade' | 'org' | 'threat' | 'chat' | 'map' | 'stats' | null>(null)
   const pub = game.publicState!
 
-  const tradeCount = game.incomingTrades.length
+  const tradeCount = game.incomingTrades.filter(t => t.toId === game.connectionInfo.playerId).length
   const threatCount = game.incomingThreats.length
   const unreadChat = game.chatMessages.filter(m => m.from !== game.connectionInfo.playerId).length
 
@@ -612,6 +671,7 @@ function DiplomacyBar({ game }: { game: GameHook }) {
         <DiplomacyButton icon="💣" label="Menaces" badge={threatCount} onClick={() => setOpenModal('threat')} />
         <DiplomacyButton icon="💬" label="Chat" badge={unreadChat > 0 ? unreadChat : 0} onClick={() => setOpenModal('chat')} />
         <DiplomacyButton icon="🌍" label="Carte" badge={0} onClick={() => setOpenModal('map')} />
+        <DiplomacyButton icon="📊" label="Stats" badge={0} onClick={() => setOpenModal('stats')} />
       </div>
 
       <AnimatePresence>
@@ -662,6 +722,12 @@ function DiplomacyBar({ game }: { game: GameHook }) {
         {openModal === 'map' && (
           <WorldMap
             publicState={pub}
+            onClose={() => setOpenModal(null)}
+          />
+        )}
+        {openModal === 'stats' && game.privateState && (
+          <StatsPanel
+            state={game.privateState}
             onClose={() => setOpenModal(null)}
           />
         )}

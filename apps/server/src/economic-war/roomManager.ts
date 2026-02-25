@@ -350,9 +350,12 @@ export class EcoWarRoomManager {
 
     const snapshot = room.actor.getSnapshot();
     if (snapshot.value !== 'actionSelection' && snapshot.value !== 'preparation') return;
+    if (targetId === player.id) return;
 
-    const targetPlayer = room.players.get(targetId);
-    if (!targetPlayer || targetId === player.id) return;
+    const isPublic = targetId === '__public__';
+
+    // Private trades: target must exist
+    if (!isPublic && !room.players.has(targetId)) return;
 
     const trade: TradeOffer = {
       id: randomUUID(),
@@ -366,15 +369,19 @@ export class EcoWarRoomManager {
 
     snapshot.context.activeTrades.push(trade);
 
-    // Add to target's incoming trades
-    const targetState = snapshot.context.players.get(targetId);
-    if (targetState) {
-      targetState.incomingTrades.push(trade);
-    }
-
-    // Notify the target
-    if (targetPlayer.socketId) {
-      this.io.to(targetPlayer.socketId).emit('trade:incoming', { trade });
+    if (isPublic) {
+      // Broadcast to all room members (market place)
+      this.io.to(room.code).emit('trade:incoming', { trade });
+    } else {
+      // Add to specific target's incoming trades
+      const targetState = snapshot.context.players.get(targetId);
+      if (targetState) {
+        targetState.incomingTrades.push(trade);
+      }
+      const targetPlayer = room.players.get(targetId);
+      if (targetPlayer?.socketId) {
+        this.io.to(targetPlayer.socketId).emit('trade:incoming', { trade });
+      }
     }
 
     this.broadcastState(room);
@@ -387,11 +394,20 @@ export class EcoWarRoomManager {
 
     const snapshot = room.actor.getSnapshot();
     const trade = snapshot.context.activeTrades.find(t => t.id === tradeId);
-    if (!trade || trade.toId !== player.id || trade.status !== 'pending') return;
+    if (!trade || trade.status !== 'pending') return;
+
+    const isPublic = trade.toId === '__public__';
+    // Private trade: only the designated target can respond
+    if (!isPublic && trade.toId !== player.id) return;
 
     trade.status = accepted ? 'accepted' : 'rejected';
 
-    // Remove from incoming trades
+    // For private trades: set the actual buyer to the respondent
+    if (trade.toId === '__public__' && accepted) {
+      trade.toId = player.id;
+    }
+
+    // Remove from private incoming trades
     const targetState = snapshot.context.players.get(player.id);
     if (targetState) {
       targetState.incomingTrades = targetState.incomingTrades.filter(t => t.id !== tradeId);
@@ -403,7 +419,7 @@ export class EcoWarRoomManager {
       this.io.to(fromPlayer.socketId).emit('trade:result', { tradeId, accepted });
     }
 
-    // Also notify respondent so their UI clears the trade
+    // Notify respondent (and all for public, since everyone sees market)
     socket.emit('trade:result', { tradeId, accepted });
 
     this.broadcastState(room);
@@ -626,6 +642,12 @@ export class EcoWarRoomManager {
       });
     }
 
+    // Notify respondent so their UI removes the threat from incomingThreats
+    socket.emit('threat:resolved', {
+      threatId: threat.id,
+      status: threat.status,
+    });
+
     this.broadcastState(room);
   }
 
@@ -795,12 +817,10 @@ export class EcoWarRoomManager {
   private schedulePhaseAdvance(room: Room, snapshot: EcoWarSnapshot): void {
     this.clearPhaseAdvanceTimer(room);
 
-    const autoAdvancePhases = ['preparation', 'resolution', 'marketEvent'];
     const currentPhase = this.resolvePhase(snapshot);
 
-    if (!autoAdvancePhases.includes(currentPhase)) return;
-
-    // In preparation: advance immediately if all connected non-abandoned players are ready
+    // ── Preparation: ONLY advance when ALL active players clicked Prêt ──
+    // Never set a fallback timer — the phase waits indefinitely for players.
     if (currentPhase === 'preparation') {
       const activePlayers = Array.from(snapshot.context.players.values())
         .filter(p => !p.abandoned && p.connected);
@@ -810,9 +830,14 @@ export class EcoWarRoomManager {
           if (!liveRoom) return;
           this.sendEvent(liveRoom, { type: 'ADVANCE_PHASE' });
         }, 0);
-        return;
       }
+      // Always return — never fall through to the timed auto-advance below
+      return;
     }
+
+    // ── resolution & marketEvent: auto-advance after a short delay ──
+    const autoAdvancePhases = ['resolution', 'marketEvent'];
+    if (!autoAdvancePhases.includes(currentPhase)) return;
 
     room.phaseAdvanceTimer = setTimeout(() => {
       const liveRoom = this.rooms.get(room.code);

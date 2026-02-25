@@ -1,64 +1,31 @@
+import { useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
 import type { EcoWarPublicGameState } from '@undercover/shared'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 
-// ─── Geographic positions ────────────────────────────────────
-// SVG viewBox 1000×500 (simplified Mercator-like projection)
+// ─── Geographic coordinates (lat, lng) ───────────────────────
 
-const COUNTRY_POS: Record<string, [number, number]> = {
-  usa:       [175, 158],
-  brazil:    [255, 308],
-  france:    [474, 124],
-  germany:   [504, 112],
-  sweden:    [510, 82],
-  russia:    [690, 92],
-  nigeria:   [498, 240],
-  morocco:   [448, 198],
-  algeria:   [478, 206],
-  tunisia:   [506, 190],
-  libya:     [530, 202],
-  israel:    [562, 190],
-  palestine: [568, 202],
-  saudi:     [612, 207],
-  india:     [710, 202],
-  china:     [776, 162],
-  japan:     [874, 152],
-  australia: [848, 362],
+const COUNTRY_LATLNG: Record<string, [number, number]> = {
+  usa:       [38.9,  -77.0],
+  brazil:    [-15.8, -47.9],
+  france:    [48.8,    2.3],
+  germany:   [52.5,   13.4],
+  sweden:    [59.3,   18.1],
+  russia:    [55.7,   37.6],
+  nigeria:   [9.1,    7.5],
+  morocco:   [33.9,   -6.9],
+  algeria:   [36.7,    3.1],
+  tunisia:   [36.8,   10.2],
+  libya:     [32.9,   13.2],
+  israel:    [31.8,   35.2],
+  palestine: [31.5,   35.1],
+  saudi:     [24.7,   46.7],
+  india:     [28.6,   77.2],
+  china:     [39.9,  116.4],
+  japan:     [35.7,  139.7],
+  australia: [-35.3, 149.1],
 }
-
-// ─── Continent shapes ────────────────────────────────────────
-
-const CONTINENTS: { d: string; fill: string }[] = [
-  {
-    // North America
-    d: 'M 66,84 L 134,68 L 204,73 L 256,91 L 285,115 L 299,171 L 280,261 L 235,304 L 199,315 L 143,295 L 93,259 L 63,204 L 53,149 Z',
-    fill: '#c8aa82',
-  },
-  {
-    // South America
-    d: 'M 199,315 L 289,305 L 320,332 L 315,406 L 285,471 L 239,494 L 189,471 L 169,415 L 173,365 Z',
-    fill: '#c0a07a',
-  },
-  {
-    // Europe
-    d: 'M 436,82 L 558,76 L 580,93 L 590,120 L 560,144 L 520,152 L 482,144 L 452,131 L 436,111 Z',
-    fill: '#c8aa82',
-  },
-  {
-    // Africa
-    d: 'M 436,185 L 582,178 L 612,215 L 607,271 L 582,362 L 542,422 L 492,438 L 445,422 L 415,372 L 399,305 L 413,239 Z',
-    fill: '#c0a07a',
-  },
-  {
-    // Asia (Eurasia — joined to Europe)
-    d: 'M 580,76 L 952,76 L 977,185 L 937,295 L 882,335 L 802,362 L 742,315 L 702,285 L 647,251 L 612,219 L 612,195 L 582,185 L 580,144 L 590,120 Z',
-    fill: '#c8aa82',
-  },
-  {
-    // Australia
-    d: 'M 772,352 L 897,346 L 962,382 L 972,436 L 922,476 L 832,486 L 762,462 L 737,416 Z',
-    fill: '#c0a07a',
-  },
-]
 
 // ─── Wealth tier colours ──────────────────────────────────────
 
@@ -78,39 +45,126 @@ interface WorldMapProps {
 }
 
 export function WorldMap({ publicState, onClose }: WorldMapProps) {
-  // Build playerId → SVG position
-  const playerPos = new Map<string, [number, number]>()
-  for (const p of publicState.players) {
-    if (p.countryId && COUNTRY_POS[p.countryId]) {
-      playerPos.set(p.id, COUNTRY_POS[p.countryId])
-    }
-  }
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<L.Map | null>(null)
 
-  // Build countryId → player
+  // Build lookup maps
   const playerByCountry = new Map<string, (typeof publicState.players)[0]>()
   for (const p of publicState.players) {
     if (p.countryId) playerByCountry.set(p.countryId, p)
   }
 
-  // War connection lines
-  const warLines = publicState.activeWars
-    .map(w => {
-      const from = playerPos.get(w.attackerId)
-      const to = playerPos.get(w.defenderId)
-      return from && to ? { id: w.id, from, to, status: w.status } : null
-    })
-    .filter(Boolean) as { id: string; from: [number, number]; to: [number, number]; status: string }[]
+  const playerPosLatLng = new Map<string, [number, number]>()
+  for (const p of publicState.players) {
+    if (p.countryId && COUNTRY_LATLNG[p.countryId]) {
+      playerPosLatLng.set(p.id, COUNTRY_LATLNG[p.countryId])
+    }
+  }
 
-  // Sanction connection lines (deduplicated)
-  const sanctionSeen = new Set<string>()
-  const sanctionLines = publicState.activeSanctions.flatMap(s => {
-    const key = [s.imposedBy, s.targetId].sort().join('↔')
-    if (sanctionSeen.has(key)) return []
-    sanctionSeen.add(key)
-    const from = playerPos.get(s.imposedBy)
-    const to = playerPos.get(s.targetId)
-    return from && to ? [{ key, from, to }] : []
-  })
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return
+
+    // Init map
+    const map = L.map(mapContainerRef.current, {
+      center: [20, 10],
+      zoom: 2,
+      zoomControl: true,
+      scrollWheelZoom: true,
+      attributionControl: true,
+    })
+
+    mapRef.current = map
+
+    // OpenStreetMap tiles (free, no API key)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 6,
+      minZoom: 1,
+    }).addTo(map)
+
+    // Sanction lines
+    const sanctionSeen = new Set<string>()
+    for (const s of publicState.activeSanctions) {
+      const key = [s.imposedBy, s.targetId].sort().join('↔')
+      if (sanctionSeen.has(key)) continue
+      sanctionSeen.add(key)
+      const from = playerPosLatLng.get(s.imposedBy)
+      const to = playerPosLatLng.get(s.targetId)
+      if (!from || !to) continue
+      L.polyline([from, to], {
+        color: '#f97316',
+        weight: 2,
+        dashArray: '8, 6',
+        opacity: 0.75,
+      }).addTo(map)
+    }
+
+    // War lines (red arrows)
+    for (const w of publicState.activeWars) {
+      const from = playerPosLatLng.get(w.attackerId)
+      const to = playerPosLatLng.get(w.defenderId)
+      if (!from || !to) continue
+      L.polyline([from, to], {
+        color: '#ef4444',
+        weight: 2.5,
+        opacity: 0.9,
+      }).addTo(map)
+    }
+
+    // Country markers
+    for (const [countryId, latlng] of Object.entries(COUNTRY_LATLNG)) {
+      const player = playerByCountry.get(countryId)
+      const inGame = !!player
+      const color = player ? (TIER_COLORS[player.wealthTier] ?? '#64748b') : '#334155'
+      const atWar = player?.atWar ?? false
+
+      // Custom circular marker
+      const outerSize = inGame ? 36 : 22
+      const emoji = inGame && player ? player.countryFlag : ''
+      const borderStyle = atWar
+        ? 'border: 2.5px solid #ef4444; box-shadow: 0 0 0 4px rgba(239,68,68,0.3);'
+        : inGame
+          ? 'border: 2px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.5);'
+          : 'border: 1px solid #475569;'
+
+      const icon = L.divIcon({
+        className: '',
+        iconSize: [outerSize, outerSize],
+        iconAnchor: [outerSize / 2, outerSize / 2],
+        html: `
+          <div style="
+            width: ${outerSize}px; height: ${outerSize}px;
+            border-radius: 50%;
+            background: ${color};
+            ${borderStyle}
+            display: flex; align-items: center; justify-content: center;
+            font-size: ${inGame ? 16 : 10}px;
+            opacity: ${inGame ? 1 : 0.35};
+          ">
+            ${emoji}
+          </div>
+        `,
+      })
+
+      const marker = L.marker(latlng as L.LatLngExpression, { icon })
+        .addTo(map)
+
+      if (inGame && player) {
+        marker.bindTooltip(
+          `<strong>${player.countryFlag} ${player.name}</strong><br/>` +
+          `Tier: ${player.wealthTier} · Score: ${player.score.toLocaleString('fr-FR')} pts` +
+          (player.atWar ? '<br/><span style="color:#ef4444">⚔️ En guerre</span>' : ''),
+          { direction: 'top', offset: [0, -outerSize / 2 - 2] }
+        )
+      }
+    }
+
+    return () => {
+      map.remove()
+      mapRef.current = null
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const activePlayers = publicState.players.filter(p => !p.abandoned)
 
@@ -152,130 +206,15 @@ export function WorldMap({ publicState, onClose }: WorldMapProps) {
           </button>
         </div>
 
-        {/* SVG Map */}
-        <div className="px-3 pt-3">
-          <svg
-            viewBox="0 0 1000 500"
-            className="w-full rounded-xl"
-            style={{ maxHeight: '60vh' }}
-          >
-            {/* Ocean */}
-            <rect width="1000" height="500" fill="#0f2744" rx="8" />
-
-            {/* Equator guide line */}
-            <line x1="0" y1="250" x2="1000" y2="250" stroke="#1a3a5c" strokeWidth="1" />
-
-            {/* Continents */}
-            {CONTINENTS.map((c, i) => (
-              <path key={i} d={c.d} fill={c.fill} stroke="#9a7850" strokeWidth="1" />
-            ))}
-
-            {/* Sanction lines */}
-            {sanctionLines.map(s => (
-              <line
-                key={s.key}
-                x1={s.from[0]} y1={s.from[1]}
-                x2={s.to[0]} y2={s.to[1]}
-                stroke="#f97316"
-                strokeWidth="1.5"
-                strokeDasharray="6,4"
-                opacity="0.75"
-              />
-            ))}
-
-            {/* War lines */}
-            {warLines.map(w => {
-              // Draw arrow from attacker to defender
-              const dx = w.to[0] - w.from[0]
-              const dy = w.to[1] - w.from[1]
-              const len = Math.sqrt(dx * dx + dy * dy)
-              const ux = dx / len
-              const uy = dy / len
-              const r = 16 // node radius — stop line before center
-              const x2 = w.to[0] - ux * r
-              const y2 = w.to[1] - uy * r
-              // Arrow head
-              const ax = x2 - ux * 8 + uy * 5
-              const ay = y2 - uy * 8 - ux * 5
-              const bx = x2 - ux * 8 - uy * 5
-              const by = y2 - uy * 8 + ux * 5
-              return (
-                <g key={w.id}>
-                  <line
-                    x1={w.from[0]} y1={w.from[1]}
-                    x2={x2} y2={y2}
-                    stroke="#ef4444"
-                    strokeWidth="2"
-                    opacity="0.9"
-                  />
-                  <polygon
-                    points={`${x2},${y2} ${ax},${ay} ${bx},${by}`}
-                    fill="#ef4444"
-                    opacity="0.9"
-                  />
-                </g>
-              )
-            })}
-
-            {/* Country nodes — all 18 countries */}
-            {Object.entries(COUNTRY_POS).map(([countryId, [cx, cy]]) => {
-              const player = playerByCountry.get(countryId)
-              const inGame = !!player
-              const atWar = player?.atWar ?? false
-              const nodeR = inGame ? 14 : 8
-              const color = player ? (TIER_COLORS[player.wealthTier] ?? '#64748b') : '#1e2d40'
-              const strokeColor = inGame ? 'white' : '#374151'
-
-              return (
-                <g key={countryId}>
-                  {/* Pulse ring for countries at war */}
-                  {atWar && (
-                    <circle cx={cx} cy={cy} r={nodeR + 3} fill="none" stroke="#ef4444" strokeWidth="1.5" opacity="0.4">
-                      <animate attributeName="r" values={`${nodeR + 2};${nodeR + 7};${nodeR + 2}`} dur="1.8s" repeatCount="indefinite" />
-                      <animate attributeName="opacity" values="0.4;0.1;0.4" dur="1.8s" repeatCount="indefinite" />
-                    </circle>
-                  )}
-                  {/* Node circle */}
-                  <circle
-                    cx={cx} cy={cy} r={nodeR}
-                    fill={color}
-                    stroke={strokeColor}
-                    strokeWidth={inGame ? 1.5 : 0.5}
-                    opacity={inGame ? 1 : 0.4}
-                  />
-                  {/* Flag (only for in-game countries) */}
-                  {inGame && player && (
-                    <text
-                      x={cx} y={cy + 1}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fontSize="11"
-                      style={{ userSelect: 'none', pointerEvents: 'none' }}
-                    >
-                      {player.countryFlag}
-                    </text>
-                  )}
-                  {/* Player name label */}
-                  {inGame && player && (
-                    <text
-                      x={cx} y={cy + nodeR + 9}
-                      textAnchor="middle"
-                      fontSize="7.5"
-                      fill="#cbd5e1"
-                      fontWeight="700"
-                      style={{ userSelect: 'none', pointerEvents: 'none' }}
-                    >
-                      {player.name}
-                    </text>
-                  )}
-                </g>
-              )
-            })}
-          </svg>
-        </div>
+        {/* Leaflet Map */}
+        <div
+          ref={mapContainerRef}
+          style={{ height: '52vh' }}
+          className="w-full"
+        />
 
         {/* Wealth tier legend + player list */}
-        <div className="px-4 py-3 space-y-2">
+        <div className="px-4 py-3 space-y-2 border-t border-slate-700">
           {/* Tier legend */}
           <div className="flex flex-wrap gap-2 text-[10px]">
             {Object.entries(TIER_COLORS).map(([tier, color]) => (
