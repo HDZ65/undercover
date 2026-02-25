@@ -24,6 +24,7 @@ import type { EcoWarMachineEvent } from './actions.js';
 import type { EcoWarGameContext, ServerPlayerState } from './types.js';
 import { getWealthTier, buildLeaderboard } from './scoring.js';
 import { DISCONNECT_GRACE_MS, EMPTY_ROOM_CLEANUP_MS, PHASE_AUTO_ADVANCE_MS } from './constants.js';
+import { COUNTRY_PROFILES } from './countryProfiles.js';
 import { createOrganization, proposeVote, castVote, leaveOrganization } from './organizations.js';
 import { applySanction } from './commerce.js';
 import type { ProductCategory, OrganizationType, TradeOffer, Threat, VoteType } from '@undercover/shared';
@@ -819,6 +820,17 @@ export class EcoWarRoomManager {
 
     // Broadcast public state to all
     this.io.to(room.code).emit('game:publicState', publicState);
+
+    // During country selection, send the available countries list
+    if (snapshot.value === 'countrySelection') {
+      const takenIds = COUNTRY_PROFILES
+        .filter(c => !context.availableCountries.includes(c.id))
+        .map(c => c.id);
+      this.io.to(room.code).emit('game:countryList', {
+        countries: COUNTRY_PROFILES,
+        takenIds,
+      });
+    }
 
     // Send private state to each player individually
     for (const [playerId, roomPlayer] of room.players) {

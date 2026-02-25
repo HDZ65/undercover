@@ -218,11 +218,6 @@ function LobbyView({ game, onBack }: { game: GameHook; onBack: () => void }) {
             onChange={(v) => handleConfigChange({ actionsPerTurn: v })} />
           <ConfigSlider label="Capital de départ" value={config.startingCapital} min={2000} max={10000} step={1000}
             onChange={(v) => handleConfigChange({ startingCapital: v })} />
-          {config.countryDraftMode === 'draft' && (
-            <ConfigSlider label="Temps par pays en draft (s)" value={config.draftTimerSeconds} min={15} max={60} step={5}
-              onChange={(v) => handleConfigChange({ draftTimerSeconds: v })} />
-          )}
-
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Mode draft pays</span>
             <button
