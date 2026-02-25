@@ -16,6 +16,8 @@ import { PokerLobby } from './components/screens/poker'
 import { UnoLobby } from './components/screens/uno'
 import { EcoWarLobby } from './components/screens/economic-war'
 
+import { ConnectionStatusOverlay } from './components/ui/ConnectionStatusOverlay'
+
 export const SocketContext = createContext<UseSocketReturn | null>(null)
 
 function App() {
@@ -79,6 +81,7 @@ function App() {
 
   return (
     <SocketContext.Provider value={socket}>
+      <ConnectionStatusOverlay connected={socket.connected} />
       <AnimatePresence mode="wait">
         <GameLayout>{renderScreen()}</GameLayout>
       </AnimatePresence>

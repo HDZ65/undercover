@@ -8,6 +8,7 @@ import type {
   Card,
   CardColor,
   ClientToServerEvents,
+  GameAnimationEvent,
   HouseRules,
   PlayerScore,
   PrivatePlayerState,
@@ -33,6 +34,7 @@ type ForwardUnoEvent =
   | 'SET_TURN_TIMER'
   | 'CONTINUE_NEXT_ROUND'
   | 'PLAY_CARD'
+  | 'PLAY_CARDS'
   | 'DRAW_CARD'
   | 'CALL_UNO'
   | 'CATCH_UNO'
@@ -65,6 +67,7 @@ const EMPTY_ROOM_TTL_MS = 10 * 60_000
 const MAX_PLAYERS_PER_ROOM = 8
 const ROOM_CODE_LENGTH = 6
 const ROOM_CODE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+const NUMBER_CARD_VALUES = new Set(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'])
 
 export class RoomManager {
   private readonly io: Namespace<ClientToServerEvents, ServerToClientEvents>
@@ -73,6 +76,10 @@ export class RoomManager {
   private readonly turnTimerRemaining: Map<string, number> = new Map()
   private readonly activeTurnPlayer: Map<string, string> = new Map()
   private readonly lastPhaseByRoom: Map<string, UnoGamePhase> = new Map()
+  private readonly lastPlayedCardByRoom: Map<string, Card | null> = new Map()
+  private readonly lastCurrentPlayerByRoom: Map<string, string> = new Map()
+  private readonly lastDiscardCountByRoom: Map<string, number> = new Map()
+  private readonly lastHandSizesByRoom: Map<string, Map<string, number>> = new Map()
 
   constructor(io: Namespace<ClientToServerEvents, ServerToClientEvents>) {
     this.io = io
@@ -418,6 +425,65 @@ export class RoomManager {
         return
       }
 
+      case 'PLAY_CARDS': {
+        const cardIds = (payload as { cardIds?: string[] } | undefined)?.cardIds
+        if (!Array.isArray(cardIds) || cardIds.length < 2 || snapshot.context.currentPlayerId !== player.id) {
+          return
+        }
+
+        if (!snapshot.matches('playerTurn')) {
+          return
+        }
+
+        if (!cardIds.every((cardId) => typeof cardId === 'string') || new Set(cardIds).size !== cardIds.length) {
+          return
+        }
+
+        const machinePlayer = snapshot.context.players.find((candidate) => candidate.id === player.id)
+        const discardTop = snapshot.context.discardPile[snapshot.context.discardPile.length - 1]
+
+        if (!machinePlayer || !discardTop) {
+          return
+        }
+
+        const cardsById = new Map(machinePlayer.hand.map((card) => [card.id, card]))
+        const cards = cardIds
+          .map((cardId) => cardsById.get(cardId))
+          .filter((card): card is NonNullable<typeof card> => Boolean(card))
+
+        if (cards.length !== cardIds.length) {
+          return
+        }
+
+        const sharedValue = cards[0]?.value
+        if (!sharedValue || !NUMBER_CARD_VALUES.has(sharedValue)) {
+          return
+        }
+
+        if (!cards.every((card) => card.value === sharedValue && NUMBER_CARD_VALUES.has(card.value))) {
+          return
+        }
+
+        const validPlays = getValidPlays(
+          machinePlayer.hand,
+          discardTop,
+          snapshot.context.currentColor,
+          snapshot.context.houseRules,
+          snapshot.context.pendingDrawStack,
+        )
+
+        if (!cards.some((card) => validPlays.some((validCard) => validCard.id === card.id))) {
+          return
+        }
+
+        this.sendEvent(room, {
+          type: 'PLAY_CARDS',
+          playerId: player.id,
+          cardIds,
+        })
+        return
+      }
+
       case 'DRAW_CARD': {
         if (!snapshot.matches('playerTurn') || snapshot.context.currentPlayerId !== player.id) {
           return
@@ -510,10 +576,120 @@ export class RoomManager {
   }
 
   private handleActorSnapshot(room: Room, snapshot: UnoSnapshot): void {
+    this.emitCardEffectAnimations(room, snapshot)
     this.syncTurnTimer(room, snapshot)
     this.syncBotForSnapshot(room, snapshot)
     this.broadcastState(room)
     this.emitPhaseEvents(room, snapshot)
+  }
+
+  private emitAnimationEvent(room: Room, event: GameAnimationEvent): void {
+    this.io.to(room.code).emit('game:animation', event)
+  }
+
+  private emitCardEffectAnimations(room: Room, snapshot: UnoSnapshot): void {
+    const context = snapshot.context
+    const previousLastPlayedCard = this.lastPlayedCardByRoom.get(room.code) ?? null
+    const previousCurrentPlayerId = this.lastCurrentPlayerByRoom.get(room.code) ?? ''
+    const previousDiscardCount = this.lastDiscardCountByRoom.get(room.code) ?? 0
+    const previousHandSizes = this.lastHandSizesByRoom.get(room.code) ?? new Map<string, number>()
+
+    const nextHandSizes = new Map(context.players.map((player) => [player.id, player.hand.length]))
+
+    if (context.lastPlayedCard && previousLastPlayedCard && context.lastPlayedCard.id !== previousLastPlayedCard.id) {
+      const sourcePlayer = room.players.get(previousCurrentPlayerId)
+      if (sourcePlayer) {
+        const sourcePlayerId = sourcePlayer.id
+        const sourcePlayerName = sourcePlayer.name
+
+        const targetIndex = this.getNextPlayerIndex(
+          context.players,
+          sourcePlayerId,
+          context.playDirection,
+          1,
+        )
+        const targetPlayerId = context.players[targetIndex]?.id
+        const targetPlayer = targetPlayerId ? room.players.get(targetPlayerId) : undefined
+
+        if (context.lastPlayedCard.value === 'wild-draw4' && targetPlayer) {
+          this.emitAnimationEvent(room, {
+            type: 'wildDraw4',
+            sourcePlayerId,
+            sourcePlayerName,
+            targetPlayerId: targetPlayer.id,
+            targetPlayerName: targetPlayer.name,
+            card: context.lastPlayedCard,
+            cardsDrawn: 4,
+          })
+        }
+
+        if (context.lastPlayedCard.value === 'draw2' && targetPlayer) {
+          this.emitAnimationEvent(room, {
+            type: 'draw2',
+            sourcePlayerId,
+            sourcePlayerName,
+            targetPlayerId: targetPlayer.id,
+            targetPlayerName: targetPlayer.name,
+            card: context.lastPlayedCard,
+            cardsDrawn: 2,
+          })
+        }
+
+        if (context.lastPlayedCard.value === 'skip' && targetPlayer) {
+          this.emitAnimationEvent(room, {
+            type: 'skip',
+            sourcePlayerId,
+            sourcePlayerName,
+            targetPlayerId: targetPlayer.id,
+            targetPlayerName: targetPlayer.name,
+            card: context.lastPlayedCard,
+          })
+        }
+
+        if (context.lastPlayedCard.value === 'reverse') {
+          this.emitAnimationEvent(room, {
+            type: 'reverse',
+            sourcePlayerId,
+            sourcePlayerName,
+            card: context.lastPlayedCard,
+          })
+        }
+
+        const previousHandSize = previousHandSizes.get(sourcePlayerId)
+        const currentHandSize = nextHandSizes.get(sourcePlayerId)
+        const cardsPlayedCount =
+          typeof previousHandSize === 'number' && typeof currentHandSize === 'number'
+            ? previousHandSize - currentHandSize
+            : 0
+        const discardGrowth = context.discardPile.length - previousDiscardCount
+
+        if (cardsPlayedCount > 1 || discardGrowth > 1) {
+          const playedCards =
+            discardGrowth > 1
+              ? context.discardPile.slice(-discardGrowth)
+              : context.discardPile.slice(-cardsPlayedCount)
+
+          if (
+            playedCards.length > 1 &&
+            playedCards.every((card) => NUMBER_CARD_VALUES.has(card.value)) &&
+            playedCards.every((card) => card.value === playedCards[0]?.value)
+          ) {
+            this.emitAnimationEvent(room, {
+              type: 'multiCard',
+              sourcePlayerId,
+              sourcePlayerName,
+              cards: playedCards,
+              card: context.lastPlayedCard,
+            })
+          }
+        }
+      }
+    }
+
+    this.lastPlayedCardByRoom.set(room.code, context.lastPlayedCard)
+    this.lastCurrentPlayerByRoom.set(room.code, context.currentPlayerId)
+    this.lastDiscardCountByRoom.set(room.code, context.discardPile.length)
+    this.lastHandSizesByRoom.set(room.code, nextHandSizes)
   }
 
   private emitPhaseEvents(room: Room, snapshot: UnoSnapshot): void {
@@ -841,6 +1017,27 @@ export class RoomManager {
     return validPlays[0]
   }
 
+  private getNextPlayerIndex(
+    players: Array<{ id: string }>,
+    playerId: string,
+    direction: UnoMachineContext['playDirection'],
+    step: number = 1,
+  ): number {
+    if (players.length === 0) {
+      return -1
+    }
+
+    const currentIndex = players.findIndex((player) => player.id === playerId)
+    const baseIndex = currentIndex === -1 ? 0 : currentIndex
+    const normalizedStep = step % players.length
+
+    if (direction === 'clockwise') {
+      return (baseIndex + normalizedStep) % players.length
+    }
+
+    return (baseIndex - normalizedStep + players.length) % players.length
+  }
+
   private getMostCommonColor(hand: Card[]): CardColor {
     const colorCounts: Record<CardColor, number> = {
       red: 0,
@@ -1064,6 +1261,10 @@ export class RoomManager {
 
       this.rooms.delete(liveRoom.code)
       this.lastPhaseByRoom.delete(liveRoom.code)
+      this.lastPlayedCardByRoom.delete(liveRoom.code)
+      this.lastCurrentPlayerByRoom.delete(liveRoom.code)
+      this.lastDiscardCountByRoom.delete(liveRoom.code)
+      this.lastHandSizesByRoom.delete(liveRoom.code)
       this.activeTurnPlayer.delete(liveRoom.code)
       this.turnTimerRemaining.delete(liveRoom.code)
     }, EMPTY_ROOM_TTL_MS)

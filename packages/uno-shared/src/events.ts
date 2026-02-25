@@ -8,6 +8,7 @@ export interface ClientToServerEvents {
 
   'game:startGame': (data: { houseRules: HouseRules; targetScore: number; turnTimer: number }) => void;
   'game:playCard': (data: { cardId: string }) => void;
+  'game:playCards': (data: { cardIds: string[] }) => void;
   'game:drawCard': () => void;
   'game:callUno': () => void;
   'game:catchUno': (data: { playerId: string }) => void;
@@ -53,6 +54,20 @@ export interface PrivatePlayerState {
   mustChooseColor: boolean;
 }
 
+
+/** Animation type for game events visible to all players */
+export type GameAnimationType = 'draw2' | 'wildDraw4' | 'skip' | 'reverse' | 'uno' | 'multiCard';
+
+export interface GameAnimationEvent {
+  type: GameAnimationType;
+  sourcePlayerId: string;
+  sourcePlayerName: string;
+  targetPlayerId?: string;
+  targetPlayerName?: string;
+  card?: Card;
+  cards?: Card[];
+  cardsDrawn?: number;
+}
 export interface ServerToClientEvents {
   'room:created': (data: { roomCode: string; playerToken: string; playerId: string }) => void;
   'room:joined': (data: { roomCode: string; playerToken: string; playerId: string }) => void;
@@ -62,4 +77,5 @@ export interface ServerToClientEvents {
   'game:state': (data: { publicState: PublicGameState; privateState: PrivatePlayerState }) => void;
   'game:roundOver': (data: { scores: PlayerScore[] }) => void;
   'game:gameOver': (data: { winner: string; scores: PlayerScore[] }) => void;
+  'game:animation': (data: GameAnimationEvent) => void;
 }

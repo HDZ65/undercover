@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import type { CardColor, PlayerScore, PublicPlayer } from '@uno/shared'
 import { UnoCard } from './UnoCard'
+import { UnoAnimationOverlay } from './UnoAnimationOverlay'
 import { useUnoSocket } from './hooks/useUnoSocket'
 
 type LandingMode = 'create' | 'join'
@@ -71,11 +72,13 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
     canCallUno,
     canCatchUno,
     mustChooseColor,
+    lastAnimation,
     createRoom,
     joinRoom,
     leaveRoom,
     startGame,
     playCard,
+    playCards,
     drawCard,
     callUno,
     catchUno,
@@ -84,7 +87,66 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
     acceptWD4,
     continueNextRound,
     resetGame,
+    clearAnimation,
   } = useUnoSocket()
+  const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
+
+  // Clear selection when turn changes or phase changes
+  useEffect(() => {
+    setSelectedCardIds(new Set())
+  }, [publicState?.currentPlayerId, phase])
+
+  const isNumericCard = useCallback((cardId: string) => {
+    const card = myHand.find((c) => c.id === cardId)
+    if (!card) return false
+    return typeof card.value === 'string' && /^[0-9]$/.test(card.value)
+  }, [myHand])
+
+  const getCardValue = useCallback((cardId: string) => {
+    return myHand.find((c) => c.id === cardId)?.value ?? null
+  }, [myHand])
+
+  const handleCardClick = useCallback((cardId: string) => {
+    const card = myHand.find((c) => c.id === cardId)
+    if (!card || !isMyTurn) return
+
+    // Non-numeric cards: play immediately (no multi-select)
+    if (!isNumericCard(cardId)) {
+      setSelectedCardIds(new Set())
+      playCard(cardId)
+      return
+    }
+
+    // Numeric card: toggle selection for multi-card play
+    setSelectedCardIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(cardId)) {
+        next.delete(cardId)
+        return next
+      }
+
+      // Only allow selecting cards with same numeric value
+      const clickedValue = getCardValue(cardId)
+      for (const selectedId of next) {
+        if (getCardValue(selectedId) !== clickedValue) {
+          next.clear()
+          break
+        }
+      }
+      next.add(cardId)
+      return next
+    })
+  }, [myHand, isMyTurn, isNumericCard, getCardValue, playCard])
+
+  const handlePlaySelected = useCallback(() => {
+    if (selectedCardIds.size === 0) return
+    if (selectedCardIds.size === 1) {
+      playCard([...selectedCardIds][0])
+    } else {
+      playCards([...selectedCardIds])
+    }
+    setSelectedCardIds(new Set())
+  }, [selectedCardIds, playCard, playCards])
 
   const playableCardIds = useMemo(
     () => new Set((privateState?.canPlayCards ?? []).map((card) => card.id)),
@@ -430,6 +492,16 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
                   <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <p className="text-sm font-semibold text-white/85">Votre main ({myHand.length})</p>
                     <div className="flex items-center gap-2">
+                      {selectedCardIds.size > 0 && (
+                        <motion.button
+                          onClick={handlePlaySelected}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          className="rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-2 text-sm font-black text-white shadow-lg"
+                        >
+                          Jouer {selectedCardIds.size > 1 ? `${selectedCardIds.size} cartes` : '1 carte'}
+                        </motion.button>
+                      )}
                       {canCallUno && (
                         <motion.button
                           onClick={callUno}
@@ -445,18 +517,19 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
                       </span>
                     </div>
                   </div>
-
                   <div className="overflow-x-auto pb-2">
                     <div className="flex gap-2 md:gap-3 min-w-max">
                       {myHand.map((card) => {
                         const playable = playableCardIds.has(card.id)
+                        const selected = selectedCardIds.has(card.id)
                         return (
                           <UnoCard
                             key={card.id}
                             card={card}
                             playable={playable}
+                            selected={selected}
                             disabled={!playable || !isMyTurn}
-                            onClick={playable && isMyTurn ? () => playCard(card.id) : undefined}
+                            onClick={playable && isMyTurn ? () => handleCardClick(card.id) : undefined}
                           />
                         )
                       })}
@@ -465,7 +538,6 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
                 </div>
               </div>
             </div>
-
             {phase === 'challengeWD4' && (
               <div className="rounded-2xl border border-amber-300/60 bg-amber-500/15 p-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -523,6 +595,8 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
             </div>
           </div>
         </div>
+
+            <UnoAnimationOverlay animation={lastAnimation} onComplete={clearAnimation} />
       </motion.div>
     )
   }
@@ -637,18 +711,19 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
 
   switch (phase) {
     case null:
-      return <LandingView />
+      return LandingView()
     case 'lobby':
-      return <LobbyView />
+      return LobbyView()
+    case 'dealing':
     case 'playerTurn':
     case 'colorChoice':
     case 'challengeWD4':
-      return <GameBoardView />
+      return GameBoardView()
     case 'roundOver':
-      return <RoundOverView />
+      return RoundOverView()
     case 'gameOver':
-      return <GameOverView />
+      return GameOverView()
     default:
-      return <LandingView />
+      return LandingView()
   }
 }

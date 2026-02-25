@@ -19,7 +19,10 @@ import { EcoWarRoomManager } from './economic-war/roomManager.js';
 
 const app = express();
 app.use(cors());
-
+// Health check endpoint — used by external cron (e.g. cron-job.org) to keep Render awake
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
 const httpServer = createServer(app);
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
@@ -31,6 +34,13 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
     origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST'],
+  },
+  // Tuned for Render free tier (sleeps after 15 min inactivity)
+  pingInterval: 20_000,
+  pingTimeout: 10_000,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60_000,
+    skipMiddlewares: true,
   },
 });
 
@@ -61,6 +71,7 @@ io.on('connection', (socket) => {
   socket.on('poker:sitOut', () => pokerRoomManager.sitOut(socket));
   socket.on('poker:sitIn', () => pokerRoomManager.sitIn(socket));
 
+  socket.on('poker:toggleStraddle', () => pokerRoomManager.toggleStraddle(socket));
   socket.on('poker:fold', ((data?: { sequenceNumber?: number }) => pokerRoomManager.handleAction(socket, 'fold', data)) as () => void);
   socket.on('poker:check', ((data?: { sequenceNumber?: number }) => pokerRoomManager.handleAction(socket, 'check', data)) as () => void);
   socket.on('poker:call', ((data?: { sequenceNumber?: number }) => pokerRoomManager.handleAction(socket, 'call', data)) as () => void);
@@ -108,6 +119,10 @@ unoNamespace.on('connection', (socket) => {
 
   socket.on('game:playCard', (data) => {
     unoRoomManager.handleGameEvent(socket, 'PLAY_CARD', data);
+  });
+
+  socket.on('game:playCards', (data) => {
+    unoRoomManager.handleGameEvent(socket, 'PLAY_CARDS', data);
   });
 
   socket.on('game:drawCard', () => {
@@ -272,4 +287,12 @@ ecoWarNamespace.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`[Server] Undercover game server running on port ${PORT}`);
+  // Self-ping keepalive: prevent Render free tier from sleeping while the process is up.
+  // This pings our own /health endpoint every 10 minutes.
+  const KEEPALIVE_INTERVAL_MS = 10 * 60_000;
+  setInterval(() => {
+    fetch(`http://localhost:${PORT}/health`).catch(() => {
+      // Swallow errors — this is best-effort
+    });
+  }, KEEPALIVE_INTERVAL_MS);
 });

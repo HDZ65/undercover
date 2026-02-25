@@ -38,6 +38,11 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
   useEffect(() => {
     const nextSocket: PokerSocket = io(SERVER_URL, {
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
       transports: ['websocket', 'polling'],
     })
 
@@ -65,7 +70,7 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
     }
 
     setLocalError(null)
-    poker.createTable({
+    poker.createTable(name, {
       maxPlayers: 6,
       smallBlind: createFormData.smallBlind,
       bigBlind: createFormData.bigBlind,
