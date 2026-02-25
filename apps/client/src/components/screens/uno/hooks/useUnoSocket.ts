@@ -3,6 +3,7 @@ import { io, type Socket } from 'socket.io-client'
 import type {
   Card,
   CardColor,
+  GameAnimationEvent,
   ClientToServerEvents,
   HouseRules,
   PrivatePlayerState,
@@ -70,6 +71,9 @@ export interface UseUnoSocketReturn {
   leaveRoom: () => void
   startGame: (houseRules?: HouseRules, targetScore?: number, turnTimer?: number) => void
   playCard: (cardId: string) => void
+  playCards: (cardIds: string[]) => void
+  lastAnimation: GameAnimationEvent | null
+  clearAnimation: () => void
   drawCard: () => void
   callUno: () => void
   catchUno: (targetId: string) => void
@@ -97,6 +101,7 @@ export function useUnoSocket(): UseUnoSocketReturn {
   const [playerId, setPlayerId] = useState<string | null>(() => getStoredValue(STORAGE_KEY_PLAYER_ID))
   const [playerToken, setPlayerToken] = useState<string | null>(() => getStoredValue(STORAGE_KEY_PLAYER_TOKEN))
   const [roomCode, setRoomCode] = useState<string | null>(() => getStoredValue(STORAGE_KEY_ROOM_CODE))
+  const [lastAnimation, setLastAnimation] = useState<GameAnimationEvent | null>(null)
 
   useEffect(() => {
     reconnectRef.current = { roomCode, playerToken }
@@ -229,6 +234,10 @@ export function useUnoSocket(): UseUnoSocketReturn {
       })
     })
 
+    socket.on('game:animation', (data) => {
+      setLastAnimation(data)
+    })
+
     return () => {
       socket.removeAllListeners()
       socket.disconnect()
@@ -301,6 +310,13 @@ export function useUnoSocket(): UseUnoSocketReturn {
     [emit],
   )
 
+  const playCards = useCallback(
+    (cardIds: string[]) => {
+      emit('game:playCards', { cardIds })
+    },
+    [emit],
+  )
+
   const drawCard = useCallback(() => {
     emit('game:drawCard')
   }, [emit])
@@ -360,6 +376,10 @@ export function useUnoSocket(): UseUnoSocketReturn {
     emit('game:resetGame')
   }, [emit])
 
+  const clearAnimation = useCallback(() => {
+    setLastAnimation(null)
+  }, [])
+
   const phase = publicState?.phase ?? null
   const isHost = privateState?.isHost ?? false
   const isMyTurn = publicState?.currentPlayerId === playerId
@@ -388,11 +408,13 @@ export function useUnoSocket(): UseUnoSocketReturn {
       canCallUno,
       canCatchUno,
       mustChooseColor,
+      lastAnimation,
       createRoom,
       joinRoom,
       leaveRoom,
       startGame,
       playCard,
+      playCards,
       drawCard,
       callUno,
       catchUno,
@@ -404,6 +426,7 @@ export function useUnoSocket(): UseUnoSocketReturn {
       setTurnTimer,
       continueNextRound,
       resetGame,
+      clearAnimation,
     }),
     [
       acceptWD4,
@@ -415,6 +438,7 @@ export function useUnoSocket(): UseUnoSocketReturn {
       catchUno,
       challengeWD4,
       chooseColor,
+      clearAnimation,
       connected,
       continueNextRound,
       createRoom,
@@ -423,11 +447,13 @@ export function useUnoSocket(): UseUnoSocketReturn {
       isHost,
       isMyTurn,
       joinRoom,
+      lastAnimation,
       leaveRoom,
       mustChooseColor,
       myHand,
       phase,
       playCard,
+      playCards,
       playerId,
       playerToken,
       privateState,
