@@ -14,7 +14,10 @@ import { RoomManager as UnoRoomManager } from './uno/roomManager.js';
 
 const app = express();
 app.use(cors());
-
+// Health check endpoint — used by external cron (e.g. cron-job.org) to keep Render awake
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok', uptime: process.uptime() });
+});
 const httpServer = createServer(app);
 const ALLOWED_ORIGINS = [
   'http://localhost:5173',
@@ -26,6 +29,13 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
     origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST'],
+  },
+  // Tuned for Render free tier (sleeps after 15 min inactivity)
+  pingInterval: 20_000,
+  pingTimeout: 10_000,
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60_000,
+    skipMiddlewares: true,
   },
 });
 
@@ -156,4 +166,12 @@ unoNamespace.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`[Server] Undercover game server running on port ${PORT}`);
+  // Self-ping keepalive: prevent Render free tier from sleeping while the process is up.
+  // This pings our own /health endpoint every 10 minutes.
+  const KEEPALIVE_INTERVAL_MS = 10 * 60_000;
+  setInterval(() => {
+    fetch(`http://localhost:${PORT}/health`).catch(() => {
+      // Swallow errors — this is best-effort
+    });
+  }, KEEPALIVE_INTERVAL_MS);
 });

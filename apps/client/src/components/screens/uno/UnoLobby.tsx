@@ -637,19 +637,19 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
 
   switch (phase) {
     case null:
-      return <LandingView />
+      return LandingView()
     case 'lobby':
-      return <LobbyView />
+      return LobbyView()
     case 'dealing':
     case 'playerTurn':
     case 'colorChoice':
     case 'challengeWD4':
-      return <GameBoardView />
+      return GameBoardView()
     case 'roundOver':
-      return <RoundOverView />
+      return RoundOverView()
     case 'gameOver':
-      return <GameOverView />
+      return GameOverView()
     default:
-      return <LandingView />
+      return LandingView()
   }
 }

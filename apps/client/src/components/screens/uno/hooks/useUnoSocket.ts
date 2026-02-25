@@ -129,8 +129,10 @@ export function useUnoSocket(): UseUnoSocketReturn {
     const socket = io(`${SERVER_URL}/uno`, {
       autoConnect: true,
       reconnection: true,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 10,
+      reconnectionDelayMax: 5000,
+      randomizationFactor: 0.5,
       transports: ['websocket', 'polling'],
     })
 
