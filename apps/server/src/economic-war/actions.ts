@@ -422,7 +422,7 @@ function processImmediateActions(
             fromId: player.id,
             toId: action.tradeOffer.toId,
             offer: action.tradeOffer.offer,
-            request: action.tradeOffer.request,
+            moneyAmount: action.tradeOffer.moneyAmount,
             status: 'pending' as const,
             roundProposed: context.currentRound,
           };

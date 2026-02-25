@@ -14,6 +14,7 @@ import { TradeModal } from './components/TradeModal'
 import { OrganizationPanel } from './components/OrganizationPanel'
 import { ThreatModal } from './components/ThreatModal'
 import { ChatPanel } from './components/ChatPanel'
+import { WorldMap } from './components/WorldMap'
 
 interface EcoWarLobbyProps {
   onBack: () => void
@@ -596,7 +597,7 @@ function VictoryView({ game, onBack }: { game: GameHook; onBack: () => void }) {
 // ─── Diplomacy Bar ──────────────────────────────────────────
 
 function DiplomacyBar({ game }: { game: GameHook }) {
-  const [openModal, setOpenModal] = useState<'trade' | 'org' | 'threat' | 'chat' | null>(null)
+  const [openModal, setOpenModal] = useState<'trade' | 'org' | 'threat' | 'chat' | 'map' | null>(null)
   const pub = game.publicState!
 
   const tradeCount = game.incomingTrades.length
@@ -610,6 +611,7 @@ function DiplomacyBar({ game }: { game: GameHook }) {
         <DiplomacyButton icon="🏛️" label="Orgs" badge={0} onClick={() => setOpenModal('org')} />
         <DiplomacyButton icon="💣" label="Menaces" badge={threatCount} onClick={() => setOpenModal('threat')} />
         <DiplomacyButton icon="💬" label="Chat" badge={unreadChat > 0 ? unreadChat : 0} onClick={() => setOpenModal('chat')} />
+        <DiplomacyButton icon="🌍" label="Carte" badge={0} onClick={() => setOpenModal('map')} />
       </div>
 
       <AnimatePresence>
@@ -654,6 +656,12 @@ function DiplomacyBar({ game }: { game: GameHook }) {
             currentPlayerId={game.connectionInfo.playerId}
             messages={game.chatMessages}
             onSend={game.sendChatMessage}
+            onClose={() => setOpenModal(null)}
+          />
+        )}
+        {openModal === 'map' && (
+          <WorldMap
+            publicState={pub}
             onClose={() => setOpenModal(null)}
           />
         )}

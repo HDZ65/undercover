@@ -26,7 +26,7 @@ interface TradeModalProps {
   onPropose: (
     targetId: string,
     offer: { product: ProductCategory; quantity: number }[],
-    request: { product: ProductCategory; quantity: number }[],
+    moneyAmount: number,
   ) => void
   onRespond: (tradeId: string, accepted: boolean) => void
   onClose: () => void
@@ -44,8 +44,7 @@ export function TradeModal({
   const [targetId, setTargetId] = useState('')
   const [offerProduct, setOfferProduct] = useState<ProductCategory>('rawAgricultural')
   const [offerQty, setOfferQty] = useState(10)
-  const [requestProduct, setRequestProduct] = useState<ProductCategory>('energy')
-  const [requestQty, setRequestQty] = useState(10)
+  const [price, setPrice] = useState(100)
 
   const otherPlayers = players.filter(p => p.id !== currentPlayerId && !p.abandoned)
 
@@ -54,7 +53,7 @@ export function TradeModal({
     onPropose(
       targetId,
       [{ product: offerProduct, quantity: offerQty }],
-      [{ product: requestProduct, quantity: requestQty }],
+      price,
     )
     setTab('incoming')
   }
@@ -126,20 +125,16 @@ export function TradeModal({
                         </p>
                         <div className="flex gap-2 text-xs">
                           <div className="flex-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2">
-                            <p className="font-bold text-emerald-700 dark:text-emerald-300 mb-1">Offre</p>
+                            <p className="font-bold text-emerald-700 dark:text-emerald-300 mb-1">Marchandises offertes</p>
                             {trade.offer.map((o, i) => (
                               <p key={i} className="text-emerald-600 dark:text-emerald-400">
                                 {PRODUCT_LABELS[o.product]?.icon} {o.quantity}x {PRODUCT_LABELS[o.product]?.label}
                               </p>
                             ))}
                           </div>
-                          <div className="flex-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 p-2">
-                            <p className="font-bold text-blue-700 dark:text-blue-300 mb-1">Demande</p>
-                            {trade.request.map((r, i) => (
-                              <p key={i} className="text-blue-600 dark:text-blue-400">
-                                {PRODUCT_LABELS[r.product]?.icon} {r.quantity}x {PRODUCT_LABELS[r.product]?.label}
-                              </p>
-                            ))}
+                          <div className="flex-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 p-2 flex flex-col items-center justify-center">
+                            <p className="font-bold text-amber-700 dark:text-amber-300 mb-1">Prix</p>
+                            <p className="text-lg font-black text-amber-600 dark:text-amber-400">💰 {trade.moneyAmount} €</p>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -198,24 +193,15 @@ export function TradeModal({
                   <p className="text-xs text-emerald-600 dark:text-emerald-400 text-center font-bold">{offerQty} unités</p>
                 </div>
 
-                {/* Request */}
-                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 space-y-2">
-                  <p className="text-xs font-bold text-blue-700 dark:text-blue-300 uppercase">Vous demandez</p>
-                  <select
-                    value={requestProduct}
-                    onChange={e => setRequestProduct(e.target.value as ProductCategory)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800/40 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100"
-                  >
-                    {PRODUCT_KEYS.map(k => (
-                      <option key={k} value={k}>{PRODUCT_LABELS[k].icon} {PRODUCT_LABELS[k].label}</option>
-                    ))}
-                  </select>
+                {/* Price */}
+                <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2">
+                  <p className="text-xs font-bold text-amber-700 dark:text-amber-300 uppercase">Prix demandé (€)</p>
                   <input
-                    type="range" min={1} max={100} step={1} value={requestQty}
-                    onChange={e => setRequestQty(Number(e.target.value))}
-                    className="w-full accent-blue-500"
+                    type="range" min={10} max={5000} step={10} value={price}
+                    onChange={e => setPrice(Number(e.target.value))}
+                    className="w-full accent-amber-500"
                   />
-                  <p className="text-xs text-blue-600 dark:text-blue-400 text-center font-bold">{requestQty} unités</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 text-center font-bold">💰 {price} €</p>
                 </div>
 
                 <button

@@ -259,7 +259,7 @@ export interface TradeOffer {
   fromId: string;
   toId: string;
   offer: { product: ProductCategory; quantity: number }[];
-  request: { product: ProductCategory; quantity: number }[];
+  moneyAmount: number;  // amount the buyer (toId) pays
   status: 'pending' | 'accepted' | 'rejected' | 'expired';
   roundProposed: number;
 }

@@ -266,9 +266,9 @@ export function useEcoWarSocket() {
   const proposeTrade = useCallback((
     targetId: string,
     offer: { product: ProductCategory; quantity: number }[],
-    request: { product: ProductCategory; quantity: number }[],
+    moneyAmount: number,
   ) => {
-    socketRef.current?.emit('trade:propose', { targetId, offer, request });
+    socketRef.current?.emit('trade:propose', { targetId, offer, moneyAmount });
   }, []);
 
   const respondToTrade = useCallback((tradeId: string, accepted: boolean) => {

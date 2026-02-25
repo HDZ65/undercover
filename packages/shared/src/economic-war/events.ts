@@ -49,7 +49,7 @@ export interface EcoWarClientToServerEvents {
   'trade:propose': (data: {
     targetId: string;
     offer: { product: ProductCategory; quantity: number }[];
-    request: { product: ProductCategory; quantity: number }[];
+    moneyAmount: number;
   }) => void;
   'trade:respond': (data: { tradeId: string; accepted: boolean }) => void;
 

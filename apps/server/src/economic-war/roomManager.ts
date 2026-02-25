@@ -342,7 +342,7 @@ export class EcoWarRoomManager {
     socket: ServerSocket,
     targetId: string,
     offer: { product: ProductCategory; quantity: number }[],
-    request: { product: ProductCategory; quantity: number }[],
+    moneyAmount: number,
   ): void {
     const resolved = this.resolveRoomAndPlayer(socket);
     if (!resolved) return;
@@ -359,7 +359,7 @@ export class EcoWarRoomManager {
       fromId: player.id,
       toId: targetId,
       offer,
-      request,
+      moneyAmount: Math.max(0, Math.round(moneyAmount)),
       status: 'pending',
       roundProposed: snapshot.context.currentRound,
     };
@@ -402,6 +402,9 @@ export class EcoWarRoomManager {
     if (fromPlayer?.socketId) {
       this.io.to(fromPlayer.socketId).emit('trade:result', { tradeId, accepted });
     }
+
+    // Also notify respondent so their UI clears the trade
+    socket.emit('trade:result', { tradeId, accepted });
 
     this.broadcastState(room);
   }
@@ -795,13 +798,27 @@ export class EcoWarRoomManager {
     const autoAdvancePhases = ['preparation', 'resolution', 'marketEvent'];
     const currentPhase = this.resolvePhase(snapshot);
 
-    if (autoAdvancePhases.includes(currentPhase)) {
-      room.phaseAdvanceTimer = setTimeout(() => {
-        const liveRoom = this.rooms.get(room.code);
-        if (!liveRoom) return;
-        this.sendEvent(liveRoom, { type: 'ADVANCE_PHASE' });
-      }, PHASE_AUTO_ADVANCE_MS);
+    if (!autoAdvancePhases.includes(currentPhase)) return;
+
+    // In preparation: advance immediately if all connected non-abandoned players are ready
+    if (currentPhase === 'preparation') {
+      const activePlayers = Array.from(snapshot.context.players.values())
+        .filter(p => !p.abandoned && p.connected);
+      if (activePlayers.length > 0 && activePlayers.every(p => p.ready)) {
+        room.phaseAdvanceTimer = setTimeout(() => {
+          const liveRoom = this.rooms.get(room.code);
+          if (!liveRoom) return;
+          this.sendEvent(liveRoom, { type: 'ADVANCE_PHASE' });
+        }, 0);
+        return;
+      }
     }
+
+    room.phaseAdvanceTimer = setTimeout(() => {
+      const liveRoom = this.rooms.get(room.code);
+      if (!liveRoom) return;
+      this.sendEvent(liveRoom, { type: 'ADVANCE_PHASE' });
+    }, PHASE_AUTO_ADVANCE_MS);
   }
 
   private clearPhaseAdvanceTimer(room: Room): void {

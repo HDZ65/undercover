@@ -40,25 +40,32 @@ export function resolveCommerce(context: EcoWarGameContext): ResolutionEntry[] {
     const surcharge = getSanctionSurcharge(from, to, context);
     const totalFeeRate = Math.max(0.02, baseFee - transportReduction - orgReduction + surcharge);
 
-    // Execute the trade (simplified: transfer money based on product values)
-    const offerValue = calculateProductValue(trade.offer);
-    const requestValue = calculateProductValue(trade.request);
+    // Money-based trade: buyer (toId) pays moneyAmount, seller (fromId) delivers goods
+    const price = trade.moneyAmount;
+    const fee = Math.round(price * totalFeeRate);
 
-    const feePaidByFrom = Math.round(offerValue * totalFeeRate);
-    const feePaidByTo = Math.round(requestValue * totalFeeRate);
+    // Buyer must have enough money
+    if (to.money < price) {
+      entries.push({
+        step: 'commerce',
+        playerId: trade.fromId,
+        targetId: trade.toId,
+        description: `Échange annulé — ${to.countryName} n'a pas les fonds suffisants (${price} €).`,
+        icon: '❌',
+        positive: false,
+      });
+      trade.status = 'rejected';
+      continue;
+    }
 
-    from.money -= feePaidByFrom;
-    to.money -= feePaidByTo;
-
-    // Exchange goods (simplified: direct money transfer representing goods)
-    from.money += requestValue - feePaidByFrom;
-    to.money += offerValue - feePaidByTo;
+    to.money -= price;
+    from.money += price - fee;
 
     entries.push({
       step: 'commerce',
       playerId: trade.fromId,
       targetId: trade.toId,
-      description: `Échange commercial entre ${from.countryName} et ${to.countryName} (frais : ${(totalFeeRate * 100).toFixed(1)}%)`,
+      description: `Échange commercial : ${to.countryName} achète à ${from.countryName} pour ${price} € (frais : ${fee} €)`,
       icon: '📦',
       positive: true,
     });
@@ -124,30 +131,6 @@ function getOrgTradeReduction(
     }
   }
   return maxReduction;
-}
-
-function calculateProductValue(
-  products: { product: string; quantity: number }[],
-): number {
-  // Simplified product values
-  const pricePerUnit: Record<string, number> = {
-    rawAgricultural: 5,
-    energy: 10,
-    minerals: 8,
-    manufactured: 15,
-    electronics: 30,
-    industrialEquipment: 25,
-    pharmaceutical: 20,
-    armament: 35,
-    luxury: 25,
-    financial: 20,
-    infrastructure: 15,
-    processedFood: 8,
-  };
-
-  return products.reduce((total, p) => {
-    return total + (pricePerUnit[p.product] || 10) * p.quantity;
-  }, 0);
 }
 
 // ─── Sanctions ─────────────────────────────────────────────────

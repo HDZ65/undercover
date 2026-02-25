@@ -219,7 +219,7 @@ ecoWarNamespace.on('connection', (socket) => {
 
   // Trade
   socket.on('trade:propose', (data) => {
-    ecoWarRoomManager.handleTradePropose(socket, data.targetId, data.offer, data.request);
+    ecoWarRoomManager.handleTradePropose(socket, data.targetId, data.offer, data.moneyAmount);
   });
 
   socket.on('trade:respond', (data) => {
