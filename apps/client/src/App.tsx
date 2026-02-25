@@ -14,6 +14,7 @@ import { MrWhiteGuess } from './components/screens/MrWhiteGuess'
 import { Victory } from './components/screens/Victory'
 import { PokerLobby } from './components/screens/poker'
 import { UnoLobby } from './components/screens/uno'
+import { EcoWarLobby } from './components/screens/economic-war'
 
 export const SocketContext = createContext<UseSocketReturn | null>(null)
 
@@ -61,10 +62,13 @@ function App() {
       }
     }
 
+    if (selectedGame === 'economic-war') {
+      return <EcoWarLobby onBack={handleBackToMenu} />
+    }
+
     if (selectedGame === 'poker') {
       return <PokerLobby onBack={handleBackToMenu} />
     }
-
 
     if (selectedGame === 'uno') {
       return <UnoLobby onBack={handleBackToMenu} />

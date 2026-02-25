@@ -1,0 +1,235 @@
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
+import type { TradeOffer, ProductCategory, PublicPlayerInfo } from '@undercover/shared'
+
+const PRODUCT_LABELS: Record<ProductCategory, { label: string; icon: string }> = {
+  rawAgricultural: { label: 'Matières agricoles', icon: '🌾' },
+  energy: { label: 'Énergie', icon: '⚡' },
+  minerals: { label: 'Minerais', icon: '⛏️' },
+  manufactured: { label: 'Manufacturé', icon: '🏭' },
+  electronics: { label: 'Électronique', icon: '💻' },
+  industrialEquipment: { label: 'Équipement industriel', icon: '⚙️' },
+  pharmaceutical: { label: 'Pharmaceutique', icon: '💊' },
+  armament: { label: 'Armement', icon: '🔫' },
+  luxury: { label: 'Luxe', icon: '💎' },
+  financial: { label: 'Services financiers', icon: '💰' },
+  infrastructure: { label: 'Infrastructure', icon: '🏗️' },
+  processedFood: { label: 'Agroalimentaire', icon: '🍔' },
+}
+
+const PRODUCT_KEYS = Object.keys(PRODUCT_LABELS) as ProductCategory[]
+
+interface TradeModalProps {
+  players: PublicPlayerInfo[]
+  currentPlayerId: string | null
+  incomingTrades: TradeOffer[]
+  onPropose: (
+    targetId: string,
+    offer: { product: ProductCategory; quantity: number }[],
+    request: { product: ProductCategory; quantity: number }[],
+  ) => void
+  onRespond: (tradeId: string, accepted: boolean) => void
+  onClose: () => void
+}
+
+export function TradeModal({
+  players,
+  currentPlayerId,
+  incomingTrades,
+  onPropose,
+  onRespond,
+  onClose,
+}: TradeModalProps) {
+  const [tab, setTab] = useState<'incoming' | 'propose'>('incoming')
+  const [targetId, setTargetId] = useState('')
+  const [offerProduct, setOfferProduct] = useState<ProductCategory>('rawAgricultural')
+  const [offerQty, setOfferQty] = useState(10)
+  const [requestProduct, setRequestProduct] = useState<ProductCategory>('energy')
+  const [requestQty, setRequestQty] = useState(10)
+
+  const otherPlayers = players.filter(p => p.id !== currentPlayerId && !p.abandoned)
+
+  const handlePropose = () => {
+    if (!targetId) return
+    onPropose(
+      targetId,
+      [{ product: offerProduct, quantity: offerQty }],
+      [{ product: requestProduct, quantity: requestQty }],
+    )
+    setTab('incoming')
+  }
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        className="w-full max-w-md mx-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl overflow-hidden"
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+          <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">📦 Commerce</h3>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800">
+            <svg className="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex border-b border-slate-200 dark:border-slate-700">
+          <button
+            onClick={() => setTab('incoming')}
+            className={`flex-1 py-2 text-sm font-bold transition-colors ${
+              tab === 'incoming'
+                ? 'text-amber-600 dark:text-amber-400 border-b-2 border-amber-500'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            Reçues ({incomingTrades.length})
+          </button>
+          <button
+            onClick={() => setTab('propose')}
+            className={`flex-1 py-2 text-sm font-bold transition-colors ${
+              tab === 'propose'
+                ? 'text-amber-600 dark:text-amber-400 border-b-2 border-amber-500'
+                : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            Proposer
+          </button>
+        </div>
+
+        <div className="p-4 max-h-[60vh] overflow-y-auto">
+          <AnimatePresence mode="wait">
+            {tab === 'incoming' ? (
+              <motion.div key="incoming" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-3">
+                {incomingTrades.length === 0 ? (
+                  <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-6">
+                    Aucune offre commerciale en attente.
+                  </p>
+                ) : (
+                  incomingTrades.map((trade) => {
+                    const from = players.find(p => p.id === trade.fromId)
+                    return (
+                      <div key={trade.id} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                        <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                          {from?.countryFlag} {from?.name || 'Inconnu'}
+                        </p>
+                        <div className="flex gap-2 text-xs">
+                          <div className="flex-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-2">
+                            <p className="font-bold text-emerald-700 dark:text-emerald-300 mb-1">Offre</p>
+                            {trade.offer.map((o, i) => (
+                              <p key={i} className="text-emerald-600 dark:text-emerald-400">
+                                {PRODUCT_LABELS[o.product]?.icon} {o.quantity}x {PRODUCT_LABELS[o.product]?.label}
+                              </p>
+                            ))}
+                          </div>
+                          <div className="flex-1 rounded-lg bg-blue-50 dark:bg-blue-950/30 p-2">
+                            <p className="font-bold text-blue-700 dark:text-blue-300 mb-1">Demande</p>
+                            {trade.request.map((r, i) => (
+                              <p key={i} className="text-blue-600 dark:text-blue-400">
+                                {PRODUCT_LABELS[r.product]?.icon} {r.quantity}x {PRODUCT_LABELS[r.product]?.label}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => onRespond(trade.id, true)}
+                            className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-500 active:scale-[0.98] transition-transform"
+                          >
+                            Accepter
+                          </button>
+                          <button
+                            onClick={() => onRespond(trade.id, false)}
+                            className="flex-1 py-1.5 rounded-lg text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/40 active:scale-[0.98] transition-transform"
+                          >
+                            Refuser
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </motion.div>
+            ) : (
+              <motion.div key="propose" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                {/* Target picker */}
+                <div>
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Partenaire</label>
+                  <select
+                    value={targetId}
+                    onChange={e => setTargetId(e.target.value)}
+                    className="w-full mt-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100"
+                  >
+                    <option value="">Choisir un pays...</option>
+                    {otherPlayers.map(p => (
+                      <option key={p.id} value={p.id}>{p.countryFlag} {p.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Offer */}
+                <div className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 p-3 space-y-2">
+                  <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase">Vous offrez</p>
+                  <select
+                    value={offerProduct}
+                    onChange={e => setOfferProduct(e.target.value as ProductCategory)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800/40 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100"
+                  >
+                    {PRODUCT_KEYS.map(k => (
+                      <option key={k} value={k}>{PRODUCT_LABELS[k].icon} {PRODUCT_LABELS[k].label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="range" min={1} max={100} step={1} value={offerQty}
+                    onChange={e => setOfferQty(Number(e.target.value))}
+                    className="w-full accent-emerald-500"
+                  />
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 text-center font-bold">{offerQty} unités</p>
+                </div>
+
+                {/* Request */}
+                <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 p-3 space-y-2">
+                  <p className="text-xs font-bold text-blue-700 dark:text-blue-300 uppercase">Vous demandez</p>
+                  <select
+                    value={requestProduct}
+                    onChange={e => setRequestProduct(e.target.value as ProductCategory)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-blue-200 dark:border-blue-800/40 bg-white dark:bg-slate-800 text-xs text-slate-900 dark:text-slate-100"
+                  >
+                    {PRODUCT_KEYS.map(k => (
+                      <option key={k} value={k}>{PRODUCT_LABELS[k].icon} {PRODUCT_LABELS[k].label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="range" min={1} max={100} step={1} value={requestQty}
+                    onChange={e => setRequestQty(Number(e.target.value))}
+                    className="w-full accent-blue-500"
+                  />
+                  <p className="text-xs text-blue-600 dark:text-blue-400 text-center font-bold">{requestQty} unités</p>
+                </div>
+
+                <button
+                  onClick={handlePropose}
+                  disabled={!targetId}
+                  className="w-full py-2.5 rounded-xl font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 shadow-lg disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98] transition-transform"
+                >
+                  Proposer l'échange
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}

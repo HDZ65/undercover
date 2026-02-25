@@ -27,6 +27,14 @@ const GAMES: GameOption[] = [
     available: true,
   },
   {
+    id: 'economic-war',
+    title: 'Empire du Commerce',
+    description: 'Gérez un pays entier : ressources, armée, recherche, diplomatie. Dominez le monde par la stratégie.',
+    gradient: 'from-amber-600 to-orange-600',
+    players: '4-12 joueurs',
+    available: true,
+  },
+  {
     id: 'poker',
     title: 'Texas Hold\'em',
     description: 'Poker en ligne entre amis. Bluffez et misez pour remporter la mise.',

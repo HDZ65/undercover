@@ -8,9 +8,14 @@ import type {
   ClientToServerEvents as UnoClientToServerEvents,
   ServerToClientEvents as UnoServerToClientEvents,
 } from './uno/shared.js';
+import type {
+  EcoWarClientToServerEvents,
+  EcoWarServerToClientEvents,
+} from '@undercover/shared';
 import { RoomManager } from './roomManager';
 import { PokerRoomManager } from './poker/pokerRoomManager';
 import { RoomManager as UnoRoomManager } from './uno/roomManager.js';
+import { EcoWarRoomManager } from './economic-war/roomManager.js';
 
 const app = express();
 app.use(cors());
@@ -33,6 +38,8 @@ const roomManager = new RoomManager(io);
 const pokerRoomManager = new PokerRoomManager(io);
 const unoNamespace = io.of('/uno') as Namespace<UnoClientToServerEvents, UnoServerToClientEvents>;
 const unoRoomManager = new UnoRoomManager(unoNamespace);
+const ecoWarNamespace = io.of('/economic-war') as Namespace<EcoWarClientToServerEvents, EcoWarServerToClientEvents>;
+const ecoWarRoomManager = new EcoWarRoomManager(ecoWarNamespace);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
@@ -149,6 +156,116 @@ unoNamespace.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     unoRoomManager.handleDisconnect(socket);
+  });
+});
+
+ecoWarNamespace.on('connection', (socket) => {
+  console.log(`[EcoWar] Connected: ${socket.id}`);
+
+  // Room management
+  socket.on('room:create', (data) => {
+    ecoWarRoomManager.createRoom(socket, data.playerName);
+  });
+
+  socket.on('room:join', (data) => {
+    ecoWarRoomManager.joinRoom(socket, data.roomCode, data.playerName, data.playerToken);
+  });
+
+  socket.on('room:leave', () => {
+    ecoWarRoomManager.leaveRoom(socket);
+  });
+
+  // Lobby
+  socket.on('game:setConfig', (data) => {
+    ecoWarRoomManager.handleSetConfig(socket, data.config);
+  });
+
+  socket.on('game:startGame', () => {
+    ecoWarRoomManager.handleStartGame(socket);
+  });
+
+  // Country selection
+  socket.on('game:selectCountry', (data) => {
+    ecoWarRoomManager.handleSelectCountry(socket, data.countryId);
+  });
+
+  // Gameplay
+  socket.on('game:submitActions', (data) => {
+    ecoWarRoomManager.handleSubmitActions(socket, data.actions);
+  });
+
+  socket.on('game:ready', () => {
+    ecoWarRoomManager.handleReady(socket);
+  });
+
+  socket.on('game:abandon', () => {
+    ecoWarRoomManager.handleAbandon(socket);
+  });
+
+  // Trade
+  socket.on('trade:propose', (data) => {
+    ecoWarRoomManager.handleTradePropose(socket, data.targetId, data.offer, data.request);
+  });
+
+  socket.on('trade:respond', (data) => {
+    ecoWarRoomManager.handleTradeRespond(socket, data.tradeId, data.accepted);
+  });
+
+  // Organizations
+  socket.on('org:create', (data) => {
+    ecoWarRoomManager.handleOrgCreate(socket, data.name, data.type, data.invitedPlayerIds);
+  });
+
+  socket.on('org:vote', (data) => {
+    ecoWarRoomManager.handleOrgVote(socket, data.orgId, data.voteId, data.vote);
+  });
+
+  socket.on('org:leave', (data) => {
+    ecoWarRoomManager.handleOrgLeave(socket, data.orgId);
+  });
+
+  socket.on('org:proposeVote', (data) => {
+    ecoWarRoomManager.handleOrgProposeVote(socket, data.orgId, data.type, data.description);
+  });
+
+  // Sanctions
+  socket.on('sanction:apply', (data) => {
+    ecoWarRoomManager.handleSanctionApply(socket, data.targetId, data.type);
+  });
+
+  socket.on('sanction:lift', (data) => {
+    ecoWarRoomManager.handleSanctionLift(socket, data.sanctionId);
+  });
+
+  // Threats
+  socket.on('threat:declare', (data) => {
+    ecoWarRoomManager.handleThreatDeclare(socket, data.targetId, data.targetInfrastructure, data.demand);
+  });
+
+  socket.on('threat:respond', (data) => {
+    ecoWarRoomManager.handleThreatRespond(socket, data.threatId, data.accepted);
+  });
+
+  socket.on('threat:execute', (data) => {
+    ecoWarRoomManager.handleThreatExecute(socket, data.threatId);
+  });
+
+  socket.on('threat:withdraw', (data) => {
+    ecoWarRoomManager.handleThreatWithdraw(socket, data.threatId);
+  });
+
+  // Chat
+  socket.on('chat:message', (data) => {
+    ecoWarRoomManager.handleChatMessage(socket, data.channel, data.message);
+  });
+
+  // Reset
+  socket.on('game:resetGame' as any, () => {
+    ecoWarRoomManager.handleResetGame(socket);
+  });
+
+  socket.on('disconnect', () => {
+    ecoWarRoomManager.handleDisconnect(socket);
   });
 });
 
