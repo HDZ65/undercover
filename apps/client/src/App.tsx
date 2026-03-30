@@ -16,6 +16,7 @@ import { PokerLobby } from './components/screens/poker'
 import { UnoLobby } from './components/screens/uno'
 import { EcoWarLobby } from './components/screens/economic-war'
 import { CodenamesLobby } from './components/screens/codenames'
+import { TamalouLobby } from './components/screens/tamalou'
 
 import { ConnectionStatusOverlay } from './components/ui/ConnectionStatusOverlay'
 
@@ -79,6 +80,10 @@ function App() {
 
     if (selectedGame === 'codenames') {
       return <CodenamesLobby onBack={handleBackToMenu} />
+    }
+
+    if (selectedGame === 'tamalou') {
+      return <TamalouLobby onBack={handleBackToMenu} />
     }
 
     return <GameMenu onSelectGame={setSelectedGame} />

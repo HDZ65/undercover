@@ -21,6 +21,11 @@ import type {
   CodenamesServerToClientEvents,
 } from '@undercover/shared';
 import { CodenamesRoomManager } from './codenames/roomManager.js';
+import type {
+  TamalouClientToServerEvents,
+  TamalouServerToClientEvents,
+} from '@undercover/shared';
+import { TamalouRoomManager } from './tamalou/roomManager.js';
 
 const app = express();
 app.use(cors());
@@ -57,6 +62,8 @@ const ecoWarNamespace = io.of('/economic-war') as Namespace<EcoWarClientToServer
 const ecoWarRoomManager = new EcoWarRoomManager(ecoWarNamespace);
 const codenamesNamespace = io.of('/codenames') as Namespace<CodenamesClientToServerEvents, CodenamesServerToClientEvents>;
 const codenamesRoomManager = new CodenamesRoomManager(codenamesNamespace);
+const tamalouNamespace = io.of('/tamalou') as Namespace<TamalouClientToServerEvents, TamalouServerToClientEvents>;
+const tamalouRoomManager = new TamalouRoomManager(tamalouNamespace);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
@@ -420,6 +427,30 @@ codenamesNamespace.on('connection', (socket) => {
   socket.on('disconnect', () => {
     codenamesRoomManager.handleDisconnect(socket);
   });
+});
+
+// ── Tamalou namespace ──
+tamalouNamespace.on('connection', (socket) => {
+  console.log(`[Tamalou] Connected: ${socket.id}`);
+
+  socket.on('room:create', (data) => tamalouRoomManager.createRoom(socket, data.playerName));
+  socket.on('room:join', (data) => tamalouRoomManager.joinRoom(socket, data.roomCode, data.playerName, data.playerToken));
+  socket.on('room:leave', () => tamalouRoomManager.leaveRoom(socket));
+  socket.on('game:startGame', () => tamalouRoomManager.handleStartGame(socket));
+  socket.on('game:setMaxScore', (data) => tamalouRoomManager.handleSetMaxScore(socket, data.maxScore));
+  socket.on('game:peekInitial', (data) => tamalouRoomManager.handlePeekInitial(socket, data.cardIndices));
+  socket.on('game:draw', (data) => tamalouRoomManager.handleDraw(socket, data.source));
+  socket.on('game:swapWithOwn', (data) => tamalouRoomManager.handleSwapWithOwn(socket, data.cardIndex));
+  socket.on('game:discardDrawn', () => tamalouRoomManager.handleDiscardDrawn(socket));
+  socket.on('game:peekOwn', (data) => tamalouRoomManager.handlePeekOwn(socket, data.cardIndex));
+  socket.on('game:peekOpponent', (data) => tamalouRoomManager.handlePeekOpponent(socket, data.targetPlayerId, data.cardIndex));
+  socket.on('game:blindSwap', (data) => tamalouRoomManager.handleBlindSwap(socket, data.ownCardIndex, data.targetPlayerId, data.targetCardIndex));
+  socket.on('game:skipPower', () => tamalouRoomManager.handleSkipPower(socket));
+  socket.on('game:ackPeek', () => tamalouRoomManager.handleAckPeek(socket));
+  socket.on('game:callTamalou', () => tamalouRoomManager.handleCallTamalou(socket));
+  socket.on('game:nextRound', () => tamalouRoomManager.handleNextRound(socket));
+  socket.on('game:resetGame', () => tamalouRoomManager.handleResetGame(socket));
+  socket.on('disconnect', () => tamalouRoomManager.handleDisconnect(socket));
 });
 
 const PORT = process.env.PORT || 3001;

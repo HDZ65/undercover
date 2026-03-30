@@ -1,0 +1,1 @@
+export { TamalouLobby } from './TamalouLobby'

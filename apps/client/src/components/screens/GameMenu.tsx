@@ -50,6 +50,14 @@ const GAMES: GameOption[] = [
     players: '4+ joueurs',
     available: true,
   },
+  {
+    id: 'tamalou',
+    title: 'Tamalou',
+    description: 'Jeu de cartes a memoire. Gardez le score le plus bas et criez Tamalou !',
+    gradient: 'from-amber-400 to-orange-500',
+    players: '2-8 joueurs',
+    available: true,
+  },
 ]
 
 interface GameMenuProps {
