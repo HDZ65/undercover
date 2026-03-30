@@ -42,6 +42,14 @@ const GAMES: GameOption[] = [
     players: '2-8 joueurs',
     available: true,
   },
+  {
+    id: 'codenames',
+    title: 'Codenames',
+    description: 'Jeu d\'espions par equipes. Donnez des indices pour faire deviner vos mots secrets.',
+    gradient: 'from-rose-500 to-sky-500',
+    players: '4+ joueurs',
+    available: true,
+  },
 ]
 
 interface GameMenuProps {

@@ -16,6 +16,11 @@ import { RoomManager } from './roomManager';
 import { PokerRoomManager } from './poker/pokerRoomManager';
 import { RoomManager as UnoRoomManager } from './uno/roomManager.js';
 import { EcoWarRoomManager } from './economic-war/roomManager.js';
+import type {
+  CodenamesClientToServerEvents,
+  CodenamesServerToClientEvents,
+} from '@undercover/shared';
+import { CodenamesRoomManager } from './codenames/roomManager.js';
 
 const app = express();
 app.use(cors());
@@ -50,6 +55,8 @@ const unoNamespace = io.of('/uno') as Namespace<UnoClientToServerEvents, UnoServ
 const unoRoomManager = new UnoRoomManager(unoNamespace);
 const ecoWarNamespace = io.of('/economic-war') as Namespace<EcoWarClientToServerEvents, EcoWarServerToClientEvents>;
 const ecoWarRoomManager = new EcoWarRoomManager(ecoWarNamespace);
+const codenamesNamespace = io.of('/codenames') as Namespace<CodenamesClientToServerEvents, CodenamesServerToClientEvents>;
+const codenamesRoomManager = new CodenamesRoomManager(codenamesNamespace);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
@@ -363,6 +370,55 @@ ecoWarNamespace.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     ecoWarRoomManager.handleDisconnect(socket);
+  });
+});
+
+// ── Codenames namespace ──
+codenamesNamespace.on('connection', (socket) => {
+  console.log(`[Codenames] Connected: ${socket.id}`);
+
+  socket.on('room:create', (data) => {
+    codenamesRoomManager.createRoom(socket, data.playerName);
+  });
+
+  socket.on('room:join', (data) => {
+    codenamesRoomManager.joinRoom(socket, data.roomCode, data.playerName, data.playerToken);
+  });
+
+  socket.on('room:leave', () => {
+    codenamesRoomManager.leaveRoom(socket);
+  });
+
+  socket.on('game:joinTeam', (data) => {
+    codenamesRoomManager.handleJoinTeam(socket, data.team);
+  });
+
+  socket.on('game:setSpymaster', () => {
+    codenamesRoomManager.handleSetSpymaster(socket);
+  });
+
+  socket.on('game:startGame', () => {
+    codenamesRoomManager.handleStartGame(socket);
+  });
+
+  socket.on('game:giveClue', (data) => {
+    codenamesRoomManager.handleGiveClue(socket, data.word, data.count);
+  });
+
+  socket.on('game:guessWord', (data) => {
+    codenamesRoomManager.handleGuessWord(socket, data.cardIndex);
+  });
+
+  socket.on('game:passTurn', () => {
+    codenamesRoomManager.handlePassTurn(socket);
+  });
+
+  socket.on('game:resetGame', () => {
+    codenamesRoomManager.handleResetGame(socket);
+  });
+
+  socket.on('disconnect', () => {
+    codenamesRoomManager.handleDisconnect(socket);
   });
 });
 

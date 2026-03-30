@@ -20,9 +20,10 @@ npm run build            # All: shared → uno-shared → server → client
 npm run build:uno        # UNO only: uno-shared → uno-server → uno-client
 
 # Test (vitest, configured at apps/server/vitest.config.ts, globals: true)
-npm test                              # Run all tests
+npm test --workspace=apps/server      # Run all server tests
 npx vitest run apps/server/src/poker  # Run specific test directory
 npx vitest run path/to/file.test.ts   # Run single test file
+npm run test:watch --workspace=apps/server  # Watch mode
 
 # Lint (per-workspace)
 npm run lint --workspace=apps/client
@@ -73,7 +74,11 @@ Each game's logic lives in an XState v5 machine (`gameMachine.ts`, `pokerMachine
 
 ### Room-Based Architecture
 
-Games use 6-character alphanumeric room codes. Players authenticate via randomly-generated tokens stored in localStorage, enabling reconnection after disconnect.
+Games use 6-character alphanumeric room codes. Authentication flow:
+1. Player enters name → client generates random token (stored in localStorage)
+2. Client sends `{ name, token }` on Socket.io connection
+3. Server associates socket with player via token
+4. On disconnect/reconnect with same token → automatic room rejoin
 
 ### Economic War (Empire du Commerce)
 
