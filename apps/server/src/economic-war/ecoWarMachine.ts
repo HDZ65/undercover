@@ -81,17 +81,20 @@ export const ecoWarMachine = (machineSetup as any).createMachine({
       on: {
         PLAYER_READY: { actions: 'markReady' },
         PLAYER_ABANDON: { actions: 'markAbandoned' },
+        FREE_ACTION: { actions: 'processFreeAction' },
         ADVANCE_PHASE: { target: 'actionSelection' },
         RESET_GAME: { target: 'lobby', actions: 'resetGame' },
       },
       always: [
         { guard: 'isGameOver', target: 'victory' },
+        { guard: 'allPlayersReady', target: 'actionSelection' },
       ],
     },
 
     actionSelection: {
       on: {
         SUBMIT_ACTIONS: { actions: 'submitActions' },
+        FREE_ACTION:    { actions: 'processFreeAction' },
         PLAYER_READY: { actions: 'markReady' },
         PLAYER_ABANDON: { actions: 'markAbandoned' },
         ACTION_TIMEOUT: {
@@ -128,6 +131,7 @@ export const ecoWarMachine = (machineSetup as any).createMachine({
       on: {
         PLAYER_READY: { actions: 'markReady' },
         PLAYER_ABANDON: { actions: 'markAbandoned' },
+        FREE_ACTION: { actions: 'processFreeAction' },
         RESET_GAME: { target: 'lobby', actions: 'resetGame' },
       },
       always: [

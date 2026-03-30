@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useEcoWarSocket } from './hooks/useEcoWarSocket'
 import type { GameConfig, CountryProfile } from '@undercover/shared'
@@ -12,10 +12,14 @@ import { NotificationPanel } from './components/NotificationPanel'
 import { ResolutionTimeline } from './components/ResolutionTimeline'
 import { TradeModal } from './components/TradeModal'
 import { OrganizationPanel } from './components/OrganizationPanel'
-import { ThreatModal } from './components/ThreatModal'
 import { ChatPanel } from './components/ChatPanel'
 import { WorldMap } from './components/WorldMap'
 import { StatsPanel } from './components/StatsPanel'
+import { MiningPanel } from './components/MiningPanel'
+import { FactoryPanel } from './components/FactoryPanel'
+import { TerritoryPanel } from './components/TerritoryPanel'
+import { TransportPanel } from './components/TransportPanel'
+import WarPanel from './components/WarPanel'
 
 interface EcoWarLobbyProps {
   onBack: () => void
@@ -24,15 +28,31 @@ interface EcoWarLobbyProps {
 export function EcoWarLobby({ onBack }: EcoWarLobbyProps) {
   const game = useEcoWarSocket()
   const pub = game.publicState
+  // Lifted here so they survive phase transitions (DiplomacyBar would remount otherwise)
+  const [lastReadChatTs, setLastReadChatTs] = useState(() => Date.now())
+  const [seenOrgItemIds, setSeenOrgItemIds] = useState<Set<string>>(new Set())
+
+  // Quitter la salle avant de retourner au menu principal
+  const handleBack = () => {
+    game.leaveRoom()
+    onBack()
+  }
+
+  const gamePhases = ['preparation', 'actionSelection', 'roundSummary']
+  const showDiplomacyBar = pub && gamePhases.includes(pub.phase)
+  const showMapBanner = pub && !['lobby', 'countrySelection'].includes(pub.phase)
+
+  const myPlayer = pub?.players.find(p => p.id === game.connectionInfo.playerId)
+  const showCountryBadge = pub && gamePhases.includes(pub.phase) && myPlayer?.countryId
 
   const renderView = () => {
     if (!pub) {
-      return <LandingView game={game} onBack={onBack} />
+      return <LandingView game={game} onBack={handleBack} />
     }
 
     switch (pub.phase) {
       case 'lobby':
-        return <LobbyView game={game} onBack={onBack} />
+        return <LobbyView game={game} onBack={handleBack} />
       case 'countrySelection':
         return <CountrySelectionView game={game} />
       case 'preparation':
@@ -46,22 +66,60 @@ export function EcoWarLobby({ onBack }: EcoWarLobbyProps) {
       case 'roundSummary':
         return <RoundSummaryView game={game} />
       case 'victory':
-        return <VictoryView game={game} onBack={onBack} />
+        return <VictoryView game={game} onBack={handleBack} />
       default:
-        return <LandingView game={game} onBack={onBack} />
+        return <LandingView game={game} onBack={handleBack} />
     }
   }
 
   return (
-    <motion.div
-      className="w-full max-w-2xl mx-auto"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.35 }}
-    >
+    <>
+      {showMapBanner && (
+        <div className="fixed top-0 left-0 right-0 z-10">
+          <WorldMap
+            publicState={pub!}
+            privateState={game.privateState ?? null}
+            inline
+            onAttackProvince={game.attackProvince}
+            onOccupyNeutral={game.occupyNeutral}
+            onTransferTroops={game.transferTroops}
+            onFortifyProvince={game.fortifyProvince}
+          />
+        </div>
+      )}
+      <motion.div
+        className="w-full max-w-2xl mx-auto"
+        style={{ paddingTop: showMapBanner ? '33vh' : 0 }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        transition={{ duration: 0.35 }}
+      >
+      {showCountryBadge && (
+        <div className="flex items-center gap-2 mb-3 px-1">
+          <span className="text-2xl">{myPlayer!.countryFlag}</span>
+          <div>
+            <p className="text-xs font-black text-slate-900 dark:text-slate-100 leading-tight">{myPlayer!.countryName}</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">Manche {pub!.currentRound}</p>
+          </div>
+          <div className="ml-auto text-right">
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Score</p>
+            <p className="text-sm font-black text-amber-600 dark:text-amber-400">{(myPlayer!.score ?? 0).toLocaleString('fr-FR')} pts</p>
+          </div>
+        </div>
+      )}
       {renderView()}
+      {showDiplomacyBar && (
+        <DiplomacyBar
+          game={game}
+          lastReadChatTs={lastReadChatTs}
+          setLastReadChatTs={setLastReadChatTs}
+          seenOrgItemIds={seenOrgItemIds}
+          setSeenOrgItemIds={setSeenOrgItemIds}
+        />
+      )}
     </motion.div>
+    </>
   )
 }
 
@@ -262,6 +320,7 @@ function CountrySelectionView({ game }: { game: GameHook }) {
   const pub = game.publicState!
   const countryList = game.countryList
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   if (!countryList) {
     return (
@@ -277,12 +336,21 @@ function CountrySelectionView({ game }: { game: GameHook }) {
     game.selectCountry(country.id)
   }
 
+  const q = search.trim().toLowerCase()
+  const filtered = q
+    ? countryList.countries.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.flag.includes(search.trim()) ||
+        c.id.includes(q)
+      )
+    : countryList.countries
+
   return (
     <div className="space-y-4">
       <div className="text-center">
         <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">Choisissez votre pays</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Sélectionnez un pays pour commencer votre empire
+          {countryList.countries.length} pays disponibles
         </p>
         {game.timer !== null && (
           <p className={`text-2xl font-black tabular-nums mt-2 ${game.timer <= 10 ? 'text-red-500 animate-pulse' : 'text-slate-900 dark:text-slate-100'}`}>
@@ -291,8 +359,19 @@ function CountrySelectionView({ game }: { game: GameHook }) {
         )}
       </div>
 
-      <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-        {countryList.countries.map((country) => (
+      <input
+        type="text"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="🔍 Rechercher un pays..."
+        className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm"
+      />
+
+      <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+        {filtered.length === 0 && (
+          <p className="text-center text-sm text-slate-400 py-4">Aucun pays trouvé</p>
+        )}
+        {filtered.map((country) => (
           <CountryCard
             key={country.id}
             country={country}
@@ -355,8 +434,6 @@ function PreparationView({ game }: { game: GameHook }) {
       {pub.journalHeadlines.length > 0 && (
         <JournalPanel headlines={pub.journalHeadlines} />
       )}
-
-      <DiplomacyBar game={game} />
 
       {/* Ready counter */}
       <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
@@ -425,6 +502,7 @@ function ActionSelectionView({ game }: { game: GameHook }) {
         onSubmit={game.submitActions}
         hasSubmitted={hasSubmitted}
         activeWars={pub.activeWars}
+        researchBranches={priv?.research?.branches}
       />
 
       {/* Active wars & threats summary */}
@@ -439,18 +517,6 @@ function ActionSelectionView({ game }: { game: GameHook }) {
         </div>
       )}
 
-      {pub.pendingThreats.length > 0 && (
-        <div className="rounded-xl border border-amber-200/60 dark:border-amber-800/40 bg-amber-50/30 dark:bg-amber-950/20 p-3">
-          <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Menaces</p>
-          {pub.pendingThreats.map((t) => (
-            <p key={t.id} className="text-xs text-amber-800 dark:text-amber-200">
-              💣 {t.attackerName} menace {t.targetName}: {t.demand}
-            </p>
-          ))}
-        </div>
-      )}
-
-      <DiplomacyBar game={game} />
     </div>
   )
 }
@@ -556,8 +622,6 @@ function RoundSummaryView({ game }: { game: GameHook }) {
         <JournalPanel headlines={pub.journalHeadlines} />
       )}
 
-      <DiplomacyBar game={game} />
-
       {/* Ready counter */}
       <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
         <span className="font-bold text-emerald-600 dark:text-emerald-400">{readyCount}</span>
@@ -655,23 +719,84 @@ function VictoryView({ game, onBack }: { game: GameHook; onBack: () => void }) {
 
 // ─── Diplomacy Bar ──────────────────────────────────────────
 
-function DiplomacyBar({ game }: { game: GameHook }) {
-  const [openModal, setOpenModal] = useState<'trade' | 'org' | 'threat' | 'chat' | 'map' | 'stats' | null>(null)
+function DiplomacyBar({
+  game,
+  lastReadChatTs,
+  setLastReadChatTs,
+  seenOrgItemIds,
+  setSeenOrgItemIds,
+}: {
+  game: GameHook
+  lastReadChatTs: number
+  setLastReadChatTs: (ts: number) => void
+  seenOrgItemIds: Set<string>
+  setSeenOrgItemIds: React.Dispatch<React.SetStateAction<Set<string>>>
+}) {
+  const [openModal, setOpenModal] = useState<'trade' | 'org' | 'chat' | 'map' | 'stats' | 'mining' | 'factory' | 'territory' | 'transport' | null>(null)
   const pub = game.publicState!
+  const playerId = game.connectionInfo.playerId
 
-  const tradeCount = game.incomingTrades.filter(t => t.toId === game.connectionInfo.playerId).length
-  const threatCount = game.incomingThreats.length
-  const unreadChat = game.chatMessages.filter(m => m.from !== game.connectionInfo.playerId).length
+  const tradeCount = game.incomingTrades.filter(t => t.toId === playerId).length
+    + (game.incomingRegionPurchases?.length ?? 0)
+  const unreadChat = game.chatMessages.filter(m => m.from !== playerId && m.timestamp > lastReadChatTs).length
+
+  // Compute org pending items that need this player's attention
+  const orgPendingIds: string[] = []
+  for (const po of pub.pendingOrgs) {
+    if (po.pendingIds.includes(playerId ?? '')) orgPendingIds.push(po.id)
+  }
+  for (const org of pub.organizations) {
+    if (!org.memberIds.includes(playerId ?? '')) continue
+    for (const req of org.joinRequests) {
+      if (req.result === 'pending' && req.votes[playerId ?? ''] === null) {
+        orgPendingIds.push(req.id)
+      }
+    }
+    for (const vote of org.activeVotes) {
+      if (vote.result === 'pending' && vote.type === 'expelMember' && vote.votes[playerId ?? ''] === null) {
+        orgPendingIds.push(vote.id)
+      }
+    }
+  }
+  const orgBadge = orgPendingIds.filter(id => !seenOrgItemIds.has(id)).length
+
+  useEffect(() => {
+    if (openModal === 'chat') {
+      setLastReadChatTs(Date.now())
+    }
+  }, [openModal, setLastReadChatTs])
+
+  useEffect(() => {
+    if (openModal === 'org') {
+      setSeenOrgItemIds(prev => {
+        const next = new Set(prev)
+        for (const id of orgPendingIds) next.add(id)
+        return next
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openModal])
 
   return (
     <>
       <div className="flex gap-2">
         <DiplomacyButton icon="📦" label="Commerce" badge={tradeCount} onClick={() => setOpenModal('trade')} />
-        <DiplomacyButton icon="🏛️" label="Orgs" badge={0} onClick={() => setOpenModal('org')} />
-        <DiplomacyButton icon="💣" label="Menaces" badge={threatCount} onClick={() => setOpenModal('threat')} />
+        <DiplomacyButton icon="🏛️" label="Orgs" badge={orgBadge} onClick={() => setOpenModal('org')} />
         <DiplomacyButton icon="💬" label="Chat" badge={unreadChat > 0 ? unreadChat : 0} onClick={() => setOpenModal('chat')} />
-        <DiplomacyButton icon="🌍" label="Carte" badge={0} onClick={() => setOpenModal('map')} />
         <DiplomacyButton icon="📊" label="Stats" badge={0} onClick={() => setOpenModal('stats')} />
+        <DiplomacyButton icon="🏭" label="Usines" badge={0} onClick={() => setOpenModal('factory')} />
+        <DiplomacyButton icon="⛏️" label="Extraction" badge={0} onClick={() => setOpenModal('mining')} />
+        <DiplomacyButton icon="🗺️" label="Territoire" badge={0} onClick={() => setOpenModal('territory')} />
+        <DiplomacyButton icon="🚛" label="Flotte" badge={0} onClick={() => setOpenModal('transport')} />
+        <WarPanel
+          privateState={game.privateState ?? null}
+          publicState={pub}
+          onSubmitAllocation={game.submitWarAllocation}
+          onRecruitInfantry={game.recruitInfantry}
+          onTrainInfantry={game.trainInfantry}
+          onDeployTroops={game.deployTroops}
+          onTransferTroops={game.transferTroops}
+        />
       </div>
 
       <AnimatePresence>
@@ -680,33 +805,33 @@ function DiplomacyBar({ game }: { game: GameHook }) {
             players={pub.players}
             currentPlayerId={game.connectionInfo.playerId}
             incomingTrades={game.incomingTrades}
+            myPrivateState={game.privateState}
+            organizations={pub.organizations}
+            activeAuctions={pub.activeAuctions}
             onPropose={game.proposeTrade}
             onRespond={game.respondToTrade}
+            onBid={game.bidOnAuction}
+            incomingRegionPurchases={game.incomingRegionPurchases ?? []}
+            onRespondRegionPurchase={game.respondToRegionPurchase}
             onClose={() => setOpenModal(null)}
           />
         )}
         {openModal === 'org' && (
           <OrganizationPanel
             organizations={pub.organizations}
+            pendingOrgs={pub.pendingOrgs}
             players={pub.players}
             currentPlayerId={game.connectionInfo.playerId}
             onCreate={game.createOrganization}
             onVote={game.voteInOrganization}
             onLeave={game.leaveOrganization}
-            onProposeVote={game.proposeOrgVote}
-            onClose={() => setOpenModal(null)}
-          />
-        )}
-        {openModal === 'threat' && (
-          <ThreatModal
-            players={pub.players}
-            currentPlayerId={game.connectionInfo.playerId}
-            incomingThreats={game.incomingThreats}
-            pendingThreats={pub.pendingThreats}
-            onDeclare={game.declareThreat}
-            onRespond={game.respondToThreat}
-            onExecute={game.executeThreat}
-            onWithdraw={game.withdrawThreat}
+            onProposeEmbargo={game.proposeEmbargo}
+            onProposeAidRequest={game.proposeAidRequest}
+            onCastAmountVote={game.castAmountVote}
+            onRespondInvite={game.respondToOrgInvite}
+            onRequestJoin={game.requestJoinOrg}
+            onVoteJoinRequest={game.voteJoinRequest}
+            onProposeExpel={game.proposeExpelMember}
             onClose={() => setOpenModal(null)}
           />
         )}
@@ -719,16 +844,76 @@ function DiplomacyBar({ game }: { game: GameHook }) {
             onClose={() => setOpenModal(null)}
           />
         )}
-        {openModal === 'map' && (
-          <WorldMap
-            publicState={pub}
-            onClose={() => setOpenModal(null)}
-          />
-        )}
         {openModal === 'stats' && game.privateState && (
           <StatsPanel
             state={game.privateState}
             onClose={() => setOpenModal(null)}
+          />
+        )}
+        {openModal === 'factory' && game.privateState && (
+          <FactoryPanel
+            state={game.privateState}
+            isActionPhase={pub.phase === 'actionSelection'}
+            onClose={() => setOpenModal(null)}
+            onReconvertFactory={(factoryId, newSector) =>
+              game.submitFreeAction({
+                type: 'invest',
+                factoryReconversion: { factoryId, newSector },
+                isFreeAction: true,
+              })
+            }
+            onUpgradeFactory={(factoryId) => game.upgradeFactory(factoryId)}
+            onSetProductionChoice={(sector, opts) =>
+              game.setProductionChoice(sector, opts)
+            }
+          />
+        )}
+        {openModal === 'territory' && (
+          <TerritoryPanel
+            pub={pub}
+            myPlayerId={game.connectionInfo.playerId ?? ''}
+            onClose={() => setOpenModal(null)}
+          />
+        )}
+        {openModal === 'transport' && game.privateState && (
+          <TransportPanel
+            state={game.privateState}
+            playerNames={Object.fromEntries(pub.players.map(p => [p.id, p.countryName]))}
+            onClose={() => setOpenModal(null)}
+          />
+        )}
+        {openModal === 'mining' && game.privateState && (
+          <MiningPanel
+            state={game.privateState}
+            onClose={() => setOpenModal(null)}
+            onInvestAction={({ resource, type }) =>
+              game.submitFreeAction({
+                type: 'invest',
+                miningAction: { resource, type },
+                isFreeAction: true,
+              })
+            }
+            onFarmAction={(action) =>
+              game.submitFreeAction({
+                type: 'invest',
+                farmAction: action,
+                isFreeAction: true,
+              })
+            }
+            onLivestockAction={(action) =>
+              game.submitFreeAction({
+                type: 'invest',
+                livestockAction: action,
+                isFreeAction: true,
+              })
+            }
+            onMarineAction={(action) =>
+              game.submitFreeAction({
+                type: 'invest',
+                marineAction: action,
+                isFreeAction: true,
+              })
+            }
           />
         )}
       </AnimatePresence>

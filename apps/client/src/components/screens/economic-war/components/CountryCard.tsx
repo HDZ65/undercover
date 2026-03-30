@@ -9,10 +9,14 @@ interface CountryCardProps {
 }
 
 const RESOURCE_ICONS: Record<string, string> = {
-  oil: '🛢️',
-  minerals: '⛏️',
+  oil:        '🛢️',
+  iron:       '🔩',
+  coal:       '🪨',
+  rareEarths: '✨',
+  precious:   '💛',
+  uranium:    '☢️',
   agriculture: '🌾',
-  water: '💧',
+  water:       '💧',
 }
 
 export function CountryCard({ country, selected, taken, onClick }: CountryCardProps) {

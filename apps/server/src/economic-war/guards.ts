@@ -19,18 +19,20 @@ export const ecoWarGuards = {
 
   allActionsSubmitted: ({ context }: { context: EcoWarGameContext }) => {
     for (const [, player] of context.players) {
-      if (player.abandoned || !player.connected) continue;
+      if (player.abandoned) continue;
       if (!player.actionsSubmitted) return false;
     }
     return true;
   },
 
   allPlayersReady: ({ context }: { context: EcoWarGameContext }) => {
+    let hasActive = false;
     for (const [, player] of context.players) {
       if (player.abandoned || !player.connected) continue;
+      hasActive = true;
       if (!player.ready) return false;
     }
-    return true;
+    return hasActive; // false if no active players at all
   },
 
   isGameOver: ({ context }: { context: EcoWarGameContext }) => {
@@ -40,10 +42,23 @@ export const ecoWarGuards = {
 
   hasEarlyVictory: ({ context }: { context: EcoWarGameContext }) => {
     if (!context.config.earlyVictoryEnabled) return false;
+
+    // Score threshold victory
     for (const [, player] of context.players) {
       if (player.abandoned) continue;
       if (player.score >= context.config.earlyVictoryThreshold) return true;
     }
+
+    // Conquest victory: a player controls 80% of all regions
+    const totalRegions = Array.from(context.players.values())
+      .reduce((sum, p) => sum + p.regions.length, 0);
+    if (totalRegions > 0) {
+      for (const [, player] of context.players) {
+        if (player.abandoned) continue;
+        if (player.regions.length / totalRegions >= 0.80) return true;
+      }
+    }
+
     return false;
   },
 };

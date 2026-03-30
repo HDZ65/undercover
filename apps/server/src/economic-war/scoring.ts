@@ -11,6 +11,7 @@ import {
   SCORE_WEIGHT_HAPPINESS,
   SCORE_MILITARY_SCALE,
   SCORE_HAPPINESS_SCALE,
+  FACTORY_BASE_INCOME,
 } from './constants';
 import type { ServerPlayerState } from './types';
 import { calculateEffectiveForce } from './military.js';
@@ -25,16 +26,35 @@ export function calculateScore(player: ServerPlayerState): number {
 export function calculateGDP(player: ServerPlayerState): number {
   let gdp = 0;
 
-  // Factory production
+  // Factory production (uses centralized FACTORY_BASE_INCOME)
   for (const factory of player.factories) {
     const healthMult = factory.health / 100;
     const tierMult = getTierMultiplier(factory.tier);
     const toolMult = getToolMultiplier(player.tools.tier);
     const infraMult = getInfraMultiplier(player.infrastructure);
     const productivityMult = player.population.productivityMultiplier;
-    const baseIncome = getFactoryBaseIncome(factory.sector);
+    const baseIncome = FACTORY_BASE_INCOME[factory.sector] ?? 0;
 
     gdp += baseIncome * healthMult * tierMult * toolMult * infraMult * productivityMult;
+  }
+
+  // All factories contribute to GDP via their count × tier (even sectors with 0 base income)
+  // This reflects industrial capacity: a player with 5 military factories is still a major economy
+  for (const factory of player.factories) {
+    const tierMult = getTierMultiplier(factory.tier);
+    const healthMult = factory.health / 100;
+    gdp += 20 * tierMult * healthMult; // base industrial contribution per factory
+  }
+
+  // Manufactured goods stock contributes to GDP (wealth from production)
+  const res = player.resources as unknown as Record<string, number>;
+  const valuableGoods: Record<string, number> = {
+    steel: 3, fuel: 2, electronicComponents: 8, pharmaceuticals: 6,
+    processedFood: 2, fertilizer: 2, phones: 12, computers: 18,
+    munitions: 1, obus: 3, bombs: 5,
+  };
+  for (const [good, value] of Object.entries(valuableGoods)) {
+    gdp += (res[good] ?? 0) * value * 0.1; // 10% of stock value per turn
   }
 
   // Patent royalties
@@ -44,6 +64,9 @@ export function calculateGDP(player: ServerPlayerState): number {
 
   // Tourism income (capped)
   gdp += player.tourism.income;
+
+  // Population contributes to GDP (larger economies produce more)
+  gdp += player.population.total * 15 * player.population.productivityMultiplier;
 
   return Math.round(gdp);
 }
@@ -141,16 +164,4 @@ function getInfraMultiplier(infra: { electricity: number; telecom: number; water
   return 0.5 + (avg / 100);
 }
 
-function getFactoryBaseIncome(sector: string): number {
-  const incomes: Record<string, number> = {
-    rawMaterials: 80,
-    energy: 120,
-    manufacturing: 100,
-    electronics: 180,
-    pharmaceutical: 160,
-    armament: 200,
-    luxury: 140,
-    food: 70,
-  };
-  return incomes[sector] || 100;
-}
+// getFactoryBaseIncome removed — uses FACTORY_BASE_INCOME constant directly

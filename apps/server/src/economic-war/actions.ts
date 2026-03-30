@@ -9,12 +9,17 @@ import type { GameConfig, PlayerAction, CountryProfile } from '@undercover/share
 import { COUNTRY_PROFILES } from './countryProfiles.js';
 import { resolveRound } from './resolution.js';
 import { doResearch } from './research.js';
-import { createFactory, getFactoryCost, upgradeInfrastructure, upgradeTransport } from './production.js';
+import { createFactory, getFactoryCost, upgradeInfrastructure, upgradeTransport, reconvertFactory } from './production.js';
 import { createWeapon, calculateEffectiveForce } from './military.js';
-import { createOrganization, castVote, leaveOrganization, proposeVote } from './organizations.js';
+import { createOrganization, castVote, leaveOrganization, proposeEmbargo, proposeAidRequest, castAmountVote } from './organizations.js';
 import { applySanction } from './commerce.js';
-import { WAR_ARMISTICE_MIN_TURNS } from './constants.js';
+import { buyMiningMachine, buyRefinery, computeInitialUnderground } from './mining.js';
+import { upgradeEquipment, toggleFallow, investIrrigation, computeInitialAgriculture } from './agriculture.js';
+import { upgradeHerdEquipment, computeInitialLivestock } from './livestock.js';
+import { upgradeMarineEquipment, computeInitialMarine } from './marine.js';
+import { buildVehicle } from './transport.js';
 import { randomUUID as uuid } from 'crypto';
+import { WAR_ARMISTICE_MIN_TURNS, SECTOR_RESEARCH_REQUIREMENTS } from './constants.js';
 
 type EcoWarEvent =
   | { type: 'ADD_PLAYER'; playerId: string; name: string; token: string; socketId: string }
@@ -23,6 +28,7 @@ type EcoWarEvent =
   | { type: 'START_GAME' }
   | { type: 'SELECT_COUNTRY'; playerId: string; countryId: string }
   | { type: 'SUBMIT_ACTIONS'; playerId: string; actions: PlayerAction[] }
+  | { type: 'FREE_ACTION'; playerId: string; action: PlayerAction }
   | { type: 'PLAYER_READY'; playerId: string }
   | { type: 'PLAYER_ABANDON'; playerId: string }
   | { type: 'ACTION_TIMEOUT' }
@@ -80,22 +86,26 @@ export const ecoWarActions = {
     },
   }),
 
-  selectCountry: assign({
-    players: ({ context, event }: { context: EcoWarGameContext; event: Extract<EcoWarEvent, { type: 'SELECT_COUNTRY' }> }) => {
-      const players = new Map(context.players);
-      const player = players.get(event.playerId);
-      const profile = COUNTRY_PROFILES.find(c => c.id === event.countryId);
-      if (!player || !profile) return players;
+  selectCountry: assign(({ context, event }: { context: EcoWarGameContext; event: Extract<EcoWarEvent, { type: 'SELECT_COUNTRY' }> }) => {
+    const players = new Map(context.players);
+    const player = players.get(event.playerId);
+    const profile = COUNTRY_PROFILES.find(c => c.id === event.countryId);
+    if (!player || !profile) return {};
 
-      initializePlayerFromCountry(player, profile, context.config);
-      return players;
-    },
-    availableCountries: ({ context, event }: { context: EcoWarGameContext; event: Extract<EcoWarEvent, { type: 'SELECT_COUNTRY' }> }) => {
-      return context.availableCountries.filter(id => id !== event.countryId);
-    },
-    currentDraftIndex: ({ context }: { context: EcoWarGameContext }) => {
-      return context.currentDraftIndex + 1;
-    },
+    // Save old country BEFORE mutation (initializePlayerFromCountry mutates in place)
+    const oldCountryId = player.countryId;
+    initializePlayerFromCountry(player, profile, context.config);
+
+    let available = context.availableCountries.filter(id => id !== event.countryId);
+    if (oldCountryId && oldCountryId !== event.countryId) {
+      available = [...available, oldCountryId];
+    }
+
+    return {
+      players,
+      availableCountries: available,
+      currentDraftIndex: context.currentDraftIndex + 1,
+    };
   }),
 
   startPreparation: assign({
@@ -127,13 +137,15 @@ export const ecoWarActions = {
       const player = players.get(event.playerId);
       if (!player) return players;
 
-      // Validate and cap actions
+      // Validate and cap actions — free actions (isFreeAction=true) bypass the slot cap
       const maxActions = context.config.actionsPerTurn;
-      player.submittedActions = event.actions.slice(0, maxActions);
+      const freeActions = event.actions.filter(a => a.isFreeAction);
+      const slottedActions = event.actions.filter(a => !a.isFreeAction);
+      player.submittedActions = slottedActions.slice(0, maxActions);
       player.actionsSubmitted = true;
 
-      // Process immediate actions (trades, org votes)
-      processImmediateActions(player, event.actions, context);
+      // Process immediate actions (trades, org votes, reconversions)
+      processImmediateActions(player, [...player.submittedActions, ...freeActions], context);
 
       return players;
     },
@@ -213,6 +225,44 @@ export const ecoWarActions = {
       currentDraftIndex: 0,
     };
   }),
+
+  /** Process a free action (doesn't consume an action slot, doesn't set actionsSubmitted). */
+  processFreeAction: assign({
+    players: ({ context, event }: { context: EcoWarGameContext; event: Extract<EcoWarEvent, { type: 'FREE_ACTION' }> }) => {
+      const players = new Map(context.players);
+      const player = players.get(event.playerId);
+      if (!player) return players;
+
+      if (event.action.factoryReconversion) {
+        reconvertFactory(player, event.action.factoryReconversion.factoryId, event.action.factoryReconversion.newSector);
+      }
+      if (event.action.miningAction) {
+        const { resource, type } = event.action.miningAction;
+        if (type === 'machine') {
+          buyMiningMachine(player, resource);
+        } else {
+          buyRefinery(player, resource);
+        }
+      }
+      if (event.action.farmAction) {
+        const { type, plotCategory } = event.action.farmAction;
+        if (type === 'upgradeEquipment' && plotCategory) {
+          upgradeEquipment(player, plotCategory);
+        } else if (type === 'toggleFallow' && plotCategory) {
+          toggleFallow(player, plotCategory);
+        } else if (type === 'investIrrigation') {
+          investIrrigation(player);
+        }
+      }
+      if (event.action.livestockAction) {
+        upgradeHerdEquipment(player, event.action.livestockAction.herdCategory);
+      }
+      if (event.action.marineAction) {
+        upgradeMarineEquipment(player);
+      }
+      return players;
+    },
+  }),
 };
 
 // ─── Helpers ───────────────────────────────────────────────────
@@ -232,18 +282,21 @@ function createNewPlayer(id: string, name: string, token: string, socketId: stri
     ready: false,
     actionsSubmitted: false,
     money: 0,
-    resources: { oil: 0, minerals: 0, agriculture: 0, water: 0 },
+    resources: { oil: 0, iron: 0, coal: 0, rareEarths: 0, precious: 0, uranium: 0, water: 0, cereals: 0, vegetables: 0, sugarOils: 0, fodder: 0, redMeat: 0, whiteMeat: 0, dairy: 0, fish: 0, steel: 0, fuel: 0, electronicComponents: 0, pharmaceuticals: 0, processedFood: 0, fertilizer: 0, phones: 0, computers: 0, munitions: 0, obus: 0, bombs: 0 },
     factories: [],
     tools: { tier: 'basic', durability: 100, maintenanceCost: 10 },
     finance: { money: 0, debt: 0, inflation: 0, currencyStrength: 1.0, creditRating: 50 },
     infrastructure: { electricity: 30, telecom: 20, waterTreatment: 25 },
     transport: { roads: 20, ports: 15, airports: 10, tradeCostReduction: 0.05 },
     tourism: { attractiveness: 20, monuments: [], bannedCountries: [], bannedBy: [], income: 0 },
-    population: { total: 1.0, growthRate: 0.02, healthLevel: 50, happinessLevel: 50, productivityMultiplier: 1.0 },
+    population: {
+      total: 1.0, growthRate: 0.02, healthLevel: 50, happinessLevel: 50, productivityMultiplier: 1.0,
+      developmentIndex: 30, needsSatisfaction: 60, birthRate: 0.02, mortalityRate: 0.008, consumptionMultiplier: 0.72,
+    },
     pollution: 10,
     research: {
       globalLevel: 0,
-      branches: { agrotech: 0, nanotech: 0, cleanEnergy: 0, cybersecurity: 0, biotech: 0, military: 0, electronics: 0, nuclear: 0 },
+      branches: { agrotech: 0, nanotech: 0, cleanEnergy: 0, cybersecurity: 0, biotech: 0, military: 0, electronics: 0, nuclear: 0, counterIntelligence: 0 },
       educationLevel: 10,
     },
     patents: [],
@@ -257,7 +310,32 @@ function createNewPlayer(id: string, name: string, token: string, socketId: stri
       maintenanceCost: 100,
       bombs: 0,
       planes: 0,
+      units: {
+        infantry: [0, 0, 0] as [number, number, number],
+        tanks:    [0, 0, 0] as [number, number, number],
+        planes:   [0, 0, 0] as [number, number, number],
+        warships: [0, 0, 0] as [number, number, number],
+      },
     },
+    mining: {
+      oil:        { underground: 0, machines: 0, hasRefinery: false },
+      iron:       { underground: 0, machines: 0, hasRefinery: false },
+      coal:       { underground: 0, machines: 0, hasRefinery: false },
+      rareEarths: { underground: 0, machines: 0, hasRefinery: false },
+      precious:   { underground: 0, machines: 0, hasRefinery: false },
+      uranium:    { underground: 0, machines: 0, hasRefinery: false },
+    },
+    agriculture: { plots: [], irrigationLevel: 0 },
+    livestock: { herds: [] },
+    marine: { stockTotal: 0, initialStock: 0, equipment: 'basic' },
+    fleet: { vehicles: [], totalCapacity: 0 },
+    maintenanceParts: [],
+    vehicleProductionQueue: {},
+    productionChoices: {},
+    pendingWarAllocations: [],
+    pendingAttackOrders: [],
+    troopsByRegion: {},
+    exhaustedTroopsByRegion: {},
     regions: [],
     organizationMemberships: [],
     activeSanctions: [],
@@ -269,6 +347,7 @@ function createNewPlayer(id: string, name: string, token: string, socketId: stri
     accumulatedBanPenalty: 0,
     espionageResults: [],
     incomingTrades: [],
+    incomingRegionPurchases: [],
     notifications: [],
     activeEffects: [],
   };
@@ -284,6 +363,22 @@ function initializePlayerFromCountry(
   player.countryFlag = profile.flag;
   player.money = config.startingCapital + profile.startingMoney;
   player.resources = { ...profile.startingResources };
+  // Initialize underground reserves proportionally to starting stock (preserves country asymmetry)
+  player.mining.oil.underground        = computeInitialUnderground(profile.startingResources.oil,        'oil');
+  player.mining.iron.underground       = computeInitialUnderground(profile.startingResources.iron,       'iron');
+  player.mining.coal.underground       = computeInitialUnderground(profile.startingResources.coal,       'coal');
+  player.mining.rareEarths.underground = computeInitialUnderground(profile.startingResources.rareEarths, 'rareEarths');
+  player.mining.precious.underground   = computeInitialUnderground(profile.startingResources.precious,   'precious');
+  player.mining.uranium.underground    = computeInitialUnderground(profile.startingResources.uranium,    'uranium');
+  // Endowment agricole = somme des cultures de départ
+  const agriEndowment = profile.startingResources.cereals + profile.startingResources.vegetables
+    + profile.startingResources.sugarOils + profile.startingResources.fodder;
+  // Initialize farm plots proportionally to country's agriculture endowment
+  player.agriculture = computeInitialAgriculture(agriEndowment);
+  // Initialize livestock herds proportionally to country's agriculture endowment
+  player.livestock = computeInitialLivestock(agriEndowment);
+  // Initialize marine stock proportionally to country's water resource
+  player.marine = computeInitialMarine(profile.startingResources.water);
   player.population.total = profile.startingPopulation;
   player.research.globalLevel = profile.bonuses.researchBonus;
   player.military.armedForces = 10 + profile.bonuses.militaryBonus;
@@ -296,27 +391,41 @@ function initializePlayerFromCountry(
     name: r.name,
     population: Math.round((profile.startingPopulation / profile.regions.length) * 1_000_000),
     productionCapacity: 100,
+    terrain: r.terrain ?? 'plains',
+    warIntegrity: 100,
+    contestedByWarId: null,
+    fortified: false,
     destroyed: false,
     destroyedUntilRound: null,
     occupiedBy: null,
     resistanceRemaining: 0,
   }));
 
-  // Starting factories based on country bonuses
-  if (profile.bonuses.agricultureBonus > 10) {
-    player.factories.push(createFactory('food', 'basic'));
-    player.factories.push(createFactory('rawMaterials', 'basic'));
-  }
-  if (profile.bonuses.researchBonus > 10) {
-    player.factories.push(createFactory('electronics', 'basic'));
-  }
-  if (profile.bonuses.militaryBonus > 10) {
-    player.factories.push(createFactory('armament', 'basic'));
-  }
-  // Everyone gets at least one factory
-  if (player.factories.length === 0) {
+  // Starting factories from country profile
+  if (profile.startingFactories && profile.startingFactories.length > 0) {
+    for (const { sector, tier } of profile.startingFactories) {
+      player.factories.push(createFactory(sector, tier));
+    }
+  } else {
+    // Fallback: everyone gets at least one basic manufacturing factory
     player.factories.push(createFactory('manufacturing', 'basic'));
   }
+
+  // Every country starts with 2 self-made trucks T1
+  for (let i = 0; i < 2; i++) {
+    player.fleet.vehicles.push({
+      id: uuid(),
+      type: 'truck',
+      tier: 1,
+      capacity: 10,
+      ageInTurns: 0,
+      maxLifespan: 8,
+      fuelType: 'oil',
+      fuelConsumption: 2,
+      createdBy: player.id,
+    });
+  }
+  player.fleet.totalCapacity = player.fleet.vehicles.reduce((s, v) => s + v.capacity, 0);
 }
 
 function processImmediateActions(
@@ -328,11 +437,17 @@ function processImmediateActions(
     switch (action.type) {
       case 'invest':
         if (action.sector && action.factoryTier) {
-          const existingCount = player.factories.filter(f => f.sector === action.sector).length;
-          const cost = getFactoryCost(action.sector, action.factoryTier, existingCount);
-          if (player.money >= cost) {
-            player.money -= cost;
-            player.factories.push(createFactory(action.sector, action.factoryTier));
+          const reqs = SECTOR_RESEARCH_REQUIREMENTS[`${action.sector}:${action.factoryTier}`] ?? [];
+          const meetsResearch = reqs.every(
+            r => (player.research.branches[r.branch as keyof typeof player.research.branches] ?? 0) >= r.level
+          );
+          if (meetsResearch) {
+            const existingCount = player.factories.filter(f => f.sector === action.sector).length;
+            const cost = getFactoryCost(action.sector, action.factoryTier, existingCount);
+            if (player.money >= cost) {
+              player.money -= cost;
+              player.factories.push(createFactory(action.sector, action.factoryTier));
+            }
           }
         }
         if (action.infrastructureTarget) {
@@ -366,6 +481,37 @@ function processImmediateActions(
             player.military.effectiveForce = calculateEffectiveForce(player);
           }
         }
+        if (action.miningAction) {
+          const { resource, type } = action.miningAction;
+          if (type === 'machine') {
+            buyMiningMachine(player, resource);
+          } else {
+            buyRefinery(player, resource);
+          }
+        }
+        if (action.farmAction) {
+          const { type, plotCategory } = action.farmAction;
+          if (type === 'upgradeEquipment' && plotCategory) {
+            upgradeEquipment(player, plotCategory);
+          } else if (type === 'toggleFallow' && plotCategory) {
+            toggleFallow(player, plotCategory);
+          } else if (type === 'investIrrigation') {
+            investIrrigation(player);
+          }
+        }
+        if (action.livestockAction) {
+          const { herdCategory } = action.livestockAction;
+          upgradeHerdEquipment(player, herdCategory);
+        }
+        if (action.marineAction) {
+          upgradeMarineEquipment(player);
+        }
+        if (action.factoryReconversion) {
+          reconvertFactory(player, action.factoryReconversion.factoryId, action.factoryReconversion.newSector);
+        }
+        if (action.vehicleAction) {
+          buildVehicle(player, action.vehicleAction.vehicleType, action.vehicleAction.tier);
+        }
         break;
 
       case 'research':
@@ -389,8 +535,10 @@ function processImmediateActions(
       case 'diplomacy':
         if (action.orgAction) {
           const oa = action.orgAction;
+
           if (oa.action === 'create' && oa.name && oa.type && oa.invitedPlayerIds) {
-            const org = createOrganization(oa.name, oa.type, [player.id, ...oa.invitedPlayerIds], context.currentRound);
+            const allMembers = [player.id, ...oa.invitedPlayerIds];
+            const org = createOrganization(oa.name, oa.type, allMembers, context.currentRound);
             if (org) {
               context.organizations.push(org);
               player.organizationMemberships.push(org.id);
@@ -400,17 +548,31 @@ function processImmediateActions(
               }
             }
           }
+
           if (oa.action === 'vote' && oa.orgId && oa.voteId && oa.vote !== undefined) {
             const org = context.organizations.find(o => o.id === oa.orgId);
             if (org) castVote(org, oa.voteId, player.id, oa.vote);
           }
+
           if (oa.action === 'leave' && oa.orgId) {
             const org = context.organizations.find(o => o.id === oa.orgId);
             if (org) leaveOrganization(org, player.id, player);
           }
-          if (oa.action === 'proposeVote' && oa.orgId && oa.proposal) {
+
+          if (oa.action === 'proposeEmbargo' && oa.orgId && oa.targetId && oa.amount !== undefined) {
             const org = context.organizations.find(o => o.id === oa.orgId);
-            if (org) proposeVote(org, player.id, 'custom', oa.proposal, context.currentRound);
+            const target = context.players.get(oa.targetId);
+            if (org) proposeEmbargo(org, player.id, oa.targetId, target?.countryName ?? oa.targetId, oa.amount, context.currentRound);
+          }
+
+          if (oa.action === 'proposeAidRequest' && oa.orgId && oa.motivationText) {
+            const org = context.organizations.find(o => o.id === oa.orgId);
+            if (org) proposeAidRequest(org, player.id, oa.motivationText, context.currentRound);
+          }
+
+          if (oa.action === 'castAmountVote' && oa.orgId && oa.voteId && oa.amount !== undefined) {
+            const org = context.organizations.find(o => o.id === oa.orgId);
+            if (org) castAmountVote(org, oa.voteId, player.id, oa.amount, context.players);
           }
         }
         break;
@@ -429,6 +591,28 @@ function processImmediateActions(
           context.activeTrades.push(trade);
           const tradeTarget = context.players.get(trade.toId);
           if (tradeTarget) tradeTarget.incomingTrades.push(trade);
+        }
+        break;
+
+      case 'buyRegion':
+        if (action.targetPlayerId && action.regionId && action.regionPrice && action.regionPrice > 0) {
+          const seller = context.players.get(action.targetPlayerId);
+          if (seller && seller.id !== player.id) {
+            const region = seller.regions.find(r => r.id === action.regionId && !r.occupiedBy && !r.destroyed);
+            if (region) {
+              const offer = {
+                id: uuid(),
+                fromId: player.id,
+                toId: seller.id,
+                regionId: region.id,
+                regionName: region.name,
+                price: action.regionPrice,
+                status: 'pending' as const,
+                roundProposed: context.currentRound,
+              };
+              seller.incomingRegionPurchases.push(offer);
+            }
+          }
         }
         break;
 
@@ -484,6 +668,54 @@ function processImmediateActions(
                 });
               }
             }
+          }
+        }
+        break;
+
+      case 'threat':
+        if (action.targetPlayerId && action.threatData) {
+          const target = context.players.get(action.targetPlayerId);
+          if (target) {
+            const { infrastructureTarget, demand } = action.threatData;
+            const infraLabels: Record<string, string> = {
+              electricity:        'Réseau électrique',
+              telecom:            'Infrastructures télécom',
+              waterTreatment:     'Traitement de l\'eau',
+              factories_food:     'Industrie agroalimentaire',
+              factories_energy:   'Secteur énergétique',
+              factories_armament: 'Arsenal militaire',
+              military:           'Forces armées',
+            };
+            const infraLabel = infraLabels[infrastructureTarget] ?? infrastructureTarget;
+
+            let demandLabel = '';
+            if (demand.type === 'money') demandLabel = `payer ${demand.amount ?? 0} €`;
+            else if (demand.type === 'resource') demandLabel = `livrer ${demand.amount ?? 0}× ${demand.resourceType}`;
+            else if (demand.type === 'military_withdrawal') demandLabel = 'réduire les forces armées de 20';
+            else if (demand.type === 'lift_sanctions') demandLabel = 'lever les sanctions';
+
+            target.notifications.push({
+              id: uuid(),
+              type: 'threat_received',
+              title: '⚠️ Menace diplomatique',
+              message: `${player.countryName} menace de détruire votre ${infraLabel}. Exigence : ${demandLabel}.`,
+              icon: '⚠️',
+              severity: 'danger',
+              round: context.currentRound,
+              read: false,
+            });
+
+            // Stocker la menace dans le contexte pour résolution ultérieure
+            context.activeThreats.push({
+              id: uuid(),
+              attackerId: player.id,
+              targetId: action.targetPlayerId,
+              targetInfrastructure: infrastructureTarget,
+              demand,
+              status: 'pending',
+              roundDeclared: context.currentRound,
+              deadlineRound: context.currentRound + 2,
+            });
           }
         }
         break;

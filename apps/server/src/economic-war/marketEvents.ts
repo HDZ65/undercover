@@ -114,8 +114,8 @@ const EVENT_POOL: EventTemplate[] = [
     getLocalTarget: (ctx) => pickWeighted(ctx, p => p.research.globalLevel),
     apply: (_ctx, target) => {
       if (!target) return [];
-      target.resources.minerals += 30;
-      return [{ step: 'events', playerId: target.id, description: `Découverte minière en ${target.countryName} ! +30 minerais.`, icon: '⛏️', positive: true }];
+      target.resources.iron += 30;
+      return [{ step: 'events', playerId: target.id, description: `Découverte minière en ${target.countryName} ! +30 fer.`, icon: '⛏️', positive: true }];
     },
   },
   {

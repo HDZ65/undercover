@@ -44,8 +44,9 @@ export function resolveSabotageActions(
       const cost = Math.round(attacker.gdp * SABOTAGE_COST_RATE);
       attacker.money -= cost;
 
-      // Calculate intelligence differential
-      const diff = attacker.military.intelligence - target.military.intelligence;
+      // Calculate intelligence differential (counterIntelligence research boosts defense)
+      const counterIntelBonus = (target.research.branches.counterIntelligence ?? 0) * 0.3;
+      const diff = attacker.military.intelligence - (target.military.intelligence + counterIntelBonus);
 
       // Step 1: Success roll
       const successRate = getSabotageSuccessRate(diff);

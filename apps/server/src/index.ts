@@ -209,6 +209,14 @@ ecoWarNamespace.on('connection', (socket) => {
     ecoWarRoomManager.handleSubmitActions(socket, data.actions);
   });
 
+  socket.on('game:freeAction', (data) => {
+    ecoWarRoomManager.handleFreeAction(socket, data.action);
+  });
+
+  socket.on('game:setProductionChoice', (data) => {
+    ecoWarRoomManager.handleSetProductionChoice(socket, data.sector, data.vehicleType, data.vehicleTier, data.weaponTier, data.partTier);
+  });
+
   socket.on('game:ready', () => {
     ecoWarRoomManager.handleReady(socket);
   });
@@ -219,11 +227,20 @@ ecoWarNamespace.on('connection', (socket) => {
 
   // Trade
   socket.on('trade:propose', (data) => {
-    ecoWarRoomManager.handleTradePropose(socket, data.targetId, data.offer, data.moneyAmount);
+    ecoWarRoomManager.handleTradePropose(socket, data.targetId, data.offer, data.moneyAmount, data.vehicles, data.maintenanceParts, data.militaryUnits);
   });
 
   socket.on('trade:respond', (data) => {
     ecoWarRoomManager.handleTradeRespond(socket, data.tradeId, data.accepted);
+  });
+
+  socket.on('trade:bid', (data) => {
+    ecoWarRoomManager.handleAuctionBid(socket, data.auctionId);
+  });
+
+  // Region Purchase
+  socket.on('region:purchaseRespond', (data) => {
+    ecoWarRoomManager.handleRegionPurchaseRespond(socket, data.offerId, data.accepted);
   });
 
   // Organizations
@@ -239,8 +256,32 @@ ecoWarNamespace.on('connection', (socket) => {
     ecoWarRoomManager.handleOrgLeave(socket, data.orgId);
   });
 
-  socket.on('org:proposeVote', (data) => {
-    ecoWarRoomManager.handleOrgProposeVote(socket, data.orgId, data.type, data.description);
+  socket.on('org:proposeEmbargo', (data) => {
+    ecoWarRoomManager.handleOrgProposeEmbargo(socket, data.orgId, data.targetId, data.amount);
+  });
+
+  socket.on('org:proposeAidRequest', (data) => {
+    ecoWarRoomManager.handleOrgProposeAidRequest(socket, data.orgId, data.motivationText);
+  });
+
+  socket.on('org:castAmountVote', (data) => {
+    ecoWarRoomManager.handleOrgCastAmountVote(socket, data.orgId, data.voteId, data.amount);
+  });
+
+  socket.on('org:respondInvite', (data) => {
+    ecoWarRoomManager.handleOrgRespondInvite(socket, data.pendingOrgId, data.accepted);
+  });
+
+  socket.on('org:requestJoin', (data) => {
+    ecoWarRoomManager.handleOrgRequestJoin(socket, data.orgId);
+  });
+
+  socket.on('org:voteJoinRequest', (data) => {
+    ecoWarRoomManager.handleOrgVoteJoinRequest(socket, data.orgId, data.requestId, data.vote);
+  });
+
+  socket.on('org:proposeExpel', (data) => {
+    ecoWarRoomManager.handleOrgProposeExpel(socket, data.orgId, data.targetId);
   });
 
   // Sanctions
@@ -254,7 +295,7 @@ ecoWarNamespace.on('connection', (socket) => {
 
   // Threats
   socket.on('threat:declare', (data) => {
-    ecoWarRoomManager.handleThreatDeclare(socket, data.targetId, data.targetInfrastructure, data.demand);
+    ecoWarRoomManager.handleThreatDeclare(socket, data.targetId, data.targetInfrastructure as import('@undercover/shared').ThreatInfraTarget, data.demand as unknown as import('@undercover/shared').ThreatDemand);
   });
 
   socket.on('threat:respond', (data) => {
@@ -267,6 +308,47 @@ ecoWarNamespace.on('connection', (socket) => {
 
   socket.on('threat:withdraw', (data) => {
     ecoWarRoomManager.handleThreatWithdraw(socket, data.threatId);
+  });
+
+  // War
+  socket.on('war:allocate', (data) => {
+    ecoWarRoomManager.handleWarAllocate(socket, data);
+  });
+
+  socket.on('war:recruitInfantry', (data) => {
+    ecoWarRoomManager.handleRecruitInfantry(socket, data.tier, data.count, data.regionId);
+  });
+
+  socket.on('war:trainInfantry', (data) => {
+    ecoWarRoomManager.handleTrainInfantry(socket, data.regionId, data.fromTier, data.count);
+  });
+
+  socket.on('factory:upgrade', (data) => {
+    ecoWarRoomManager.handleUpgradeFactory(socket, data.factoryId);
+  });
+
+  socket.on('factory:togglePause', (data) => {
+    ecoWarRoomManager.handleTogglePauseFactory(socket, data.factoryId);
+  });
+
+  socket.on('war:deployTroops', (data) => {
+    ecoWarRoomManager.handleDeployTroops(socket, data.regionId, data.units);
+  });
+
+  socket.on('war:transferTroops', (data) => {
+    ecoWarRoomManager.handleTransferTroops(socket, data.fromRegionId, data.toRegionId, data.units);
+  });
+
+  socket.on('war:attackProvince', (data) => {
+    ecoWarRoomManager.handleAttackProvince(socket, data);
+  });
+
+  socket.on('war:occupyNeutral', (data) => {
+    ecoWarRoomManager.handleOccupyNeutral(socket, data.fromRegionId, data.toRegionId, data.units);
+  });
+
+  socket.on('war:fortifyProvince', (data) => {
+    ecoWarRoomManager.handleFortifyProvince(socket, data.regionId);
   });
 
   // Chat

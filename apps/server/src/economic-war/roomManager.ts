@@ -18,16 +18,23 @@ import type {
   PlayerAction,
   PublicWarInfo,
   PublicThreatInfo,
+  TradeAuction,
+  PendingOrg,
+  VehicleTradeItem,
 } from '@undercover/shared';
 import { ecoWarMachine } from './ecoWarMachine.js';
 import type { EcoWarMachineEvent } from './actions.js';
 import type { EcoWarGameContext, ServerPlayerState } from './types.js';
 import { getWealthTier, buildLeaderboard } from './scoring.js';
-import { DISCONNECT_GRACE_MS, EMPTY_ROOM_CLEANUP_MS, PHASE_AUTO_ADVANCE_MS } from './constants.js';
+import { DISCONNECT_GRACE_MS, EMPTY_ROOM_CLEANUP_MS, PHASE_AUTO_ADVANCE_MS, VEHICLE_SPEC_MAP, VEHICLE_REQUIRED_SECTOR, FORTIFY_COST } from './constants.js';
 import { COUNTRY_PROFILES } from './countryProfiles.js';
-import { createOrganization, proposeVote, castVote, leaveOrganization } from './organizations.js';
-import { applySanction } from './commerce.js';
-import type { ProductCategory, OrganizationType, TradeOffer, Threat, VoteType } from '@undercover/shared';
+import { areAdjacent, getProvinceData } from './adjacency.js';
+import { createOrganization, castVote, leaveOrganization, proposeEmbargo, proposeAidRequest, castAmountVote, addJoinRequest, voteOnJoinRequest, proposeExpelMember } from './organizations.js';
+import { applySanction, areInSameCommercialOrg, getEmbargoSurcharge } from './commerce.js';
+import { ORG_TRADE_TAX_MIN } from './constants.js';
+import type { ResourceType, OrganizationType, TradeOffer, Threat, ThreatInfraTarget, ThreatDemand, VehicleType, VehicleTier, IndustrySector, WarAllocationSubmission, MilitaryUnitTradeItem } from '@undercover/shared';
+import { recruitInfantry, trainInfantry } from './military.js';
+import { buildFactoryProductionInfo, buildAlerts, upgradeFactory } from './production.js';
 
 type ServerSocket = Socket<EcoWarClientToServerEvents, EcoWarServerToClientEvents>;
 
@@ -62,7 +69,11 @@ interface Room {
   emptyRoomTimer: NodeJS.Timeout | null;
   actionTimerInterval: NodeJS.Timeout | null;
   phaseAdvanceTimer: NodeJS.Timeout | null;
+  activeAuctions: Map<string, { auction: TradeAuction; timer: NodeJS.Timeout }>;
+  pendingOrgs: Map<string, PendingOrg>;
 }
+
+const AUCTION_DURATION_MS = 60_000; // 1 minute
 
 const ROOM_CODE_LENGTH = 6;
 const ROOM_CODE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -101,6 +112,8 @@ export class EcoWarRoomManager {
       emptyRoomTimer: null,
       actionTimerInterval: null,
       phaseAdvanceTimer: null,
+      activeAuctions: new Map(),
+      pendingOrgs: new Map(),
     };
 
     this.rooms.set(roomCode, room);
@@ -251,6 +264,10 @@ export class EcoWarRoomManager {
     if (machinePlayer) {
       machinePlayer.connected = false;
       machinePlayer.disconnectedAt = Date.now();
+      // Auto-submit for disconnected player so others aren't blocked
+      if (snapshot.value === 'actionSelection') {
+        machinePlayer.actionsSubmitted = true;
+      }
     }
 
     this.reassignHostIfNeeded(room);
@@ -312,6 +329,528 @@ export class EcoWarRoomManager {
     if (snapshot.value !== 'actionSelection') return;
 
     this.sendEvent(room, { type: 'SUBMIT_ACTIONS', playerId: player.id, actions });
+
+    // Notify sellers about any buyRegion offers
+    const context = room.actor.getSnapshot().context;
+    for (const action of actions) {
+      if (action.type === 'buyRegion' && action.targetPlayerId) {
+        const seller = context.players.get(action.targetPlayerId);
+        const sellerSocketId = seller ? room.players.get(seller.id)?.socketId : null;
+        if (sellerSocketId && seller) {
+          const offer = seller.incomingRegionPurchases.find(o => o.fromId === player.id && o.regionId === action.regionId);
+          if (offer) {
+            this.io.to(sellerSocketId).emit('region:purchaseIncoming', { offer, buyerName: player.name });
+          }
+        }
+      }
+    }
+  }
+
+  handleFreeAction(socket: ServerSocket, action: PlayerAction): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    // Allow free actions in any active game phase (preparation, actionSelection, roundSummary)
+    if (phase !== 'preparation' && phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    this.sendEvent(room, { type: 'FREE_ACTION', playerId: player.id, action });
+    this.broadcastState(room);
+  }
+
+  handleSetProductionChoice(
+    socket: ServerSocket,
+    sector: IndustrySector,
+    vehicleType: VehicleType | undefined,
+    vehicleTier: VehicleTier | undefined,
+    weaponTier?: 1 | 2 | 3 | 4,
+    partTier?: 1 | 2 | 3 | 4,
+  ): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    if (phase !== 'preparation' && phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    serverPlayer.productionChoices[sector] = { vehicleType, vehicleTier, weaponTier, partTier };
+    this.broadcastState(room);
+  }
+
+  // ─── War ─────────────────────────────────────────────────────
+
+  handleWarAllocate(socket: ServerSocket, allocation: WarAllocationSubmission): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    if (phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    // Validate war exists and player is a participant
+    const war = context.activeWars.find(w => w.id === allocation.warId && w.status === 'active');
+    if (!war) return;
+    if (war.attackerId !== player.id && war.defenderId !== player.id) return;
+
+    // Replace any existing allocation for this war
+    serverPlayer.pendingWarAllocations = serverPlayer.pendingWarAllocations.filter(a => a.warId !== allocation.warId);
+    serverPlayer.pendingWarAllocations.push(allocation);
+    // Silent: no broadcast needed
+  }
+
+  handleRecruitInfantry(socket: ServerSocket, tier: 1 | 2 | 3, count: number, regionId: string): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    if (phase !== 'preparation' && phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    const error = recruitInfantry(serverPlayer, tier, count, regionId);
+    if (error) {
+      socket.emit('room:error', { message: error });
+      return;
+    }
+
+    this.broadcastState(room);
+  }
+
+  handleTrainInfantry(socket: ServerSocket, regionId: string, fromTier: 1 | 2, count: number): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    if (phase !== 'preparation' && phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    const error = trainInfantry(serverPlayer, regionId, fromTier, count);
+    if (error) {
+      socket.emit('room:error', { message: error });
+      return;
+    }
+
+    this.broadcastState(room);
+  }
+
+  handleUpgradeFactory(socket: ServerSocket, factoryId: string): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    if (phase !== 'preparation' && phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    const { error } = upgradeFactory(serverPlayer, factoryId);
+    if (error) {
+      socket.emit('room:error', { message: error });
+      return;
+    }
+
+    this.broadcastState(room);
+  }
+
+  handleTogglePauseFactory(socket: ServerSocket, factoryId: string): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    if (phase !== 'preparation' && phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    const factory = serverPlayer.factories.find(f => f.id === factoryId);
+    if (!factory) {
+      socket.emit('room:error', { message: 'Usine introuvable' });
+      return;
+    }
+
+    factory.paused = !factory.paused;
+    this.broadcastState(room);
+  }
+
+  handleDeployTroops(socket: ServerSocket, regionId: string, units: import('@undercover/shared').MilitaryUnits): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    if (phase !== 'preparation' && phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    // Validate: player owns the region
+    const ownsRegion = serverPlayer.regions.some(r => r.id === regionId && !r.occupiedBy && !r.destroyed);
+    if (!ownsRegion) return;
+
+    // Interdit si des troupes ennemies sont déjà dans cette province
+    const hasEnemyTroops = [...context.players.values()].some(p =>
+      p.id !== serverPlayer.id &&
+      p.troopsByRegion[regionId] &&
+      (p.troopsByRegion[regionId].infantry.some(v => v > 0) ||
+       p.troopsByRegion[regionId].tanks.some(v => v > 0) ||
+       p.troopsByRegion[regionId].planes.some(v => v > 0) ||
+       p.troopsByRegion[regionId].warships.some(v => v > 0))
+    );
+    if (hasEnemyTroops) {
+      socket.emit('room:error', { message: 'Impossible de déployer dans une province occupée par des troupes ennemies.' });
+      return;
+    }
+
+    // Validate: enough units in reserve
+    const reserve = serverPlayer.military.units;
+    for (let t = 0; t < 3; t++) {
+      if ((units.infantry[t] ?? 0) > reserve.infantry[t]) return;
+      if ((units.tanks[t]    ?? 0) > reserve.tanks[t])    return;
+      if ((units.planes[t]   ?? 0) > reserve.planes[t])   return;
+      if ((units.warships[t] ?? 0) > reserve.warships[t]) return;
+    }
+
+    // Move units from reserve to region
+    const current = serverPlayer.troopsByRegion[regionId] ?? {
+      infantry: [0, 0, 0] as [number, number, number],
+      tanks:    [0, 0, 0] as [number, number, number],
+      planes:   [0, 0, 0] as [number, number, number],
+      warships: [0, 0, 0] as [number, number, number],
+    };
+    for (let t = 0; t < 3; t++) {
+      reserve.infantry[t] -= (units.infantry[t] ?? 0);
+      reserve.tanks[t]    -= (units.tanks[t]    ?? 0);
+      reserve.planes[t]   -= (units.planes[t]   ?? 0);
+      reserve.warships[t] -= (units.warships[t] ?? 0);
+      current.infantry[t] += (units.infantry[t] ?? 0);
+      current.tanks[t]    += (units.tanks[t]    ?? 0);
+      current.planes[t]   += (units.planes[t]   ?? 0);
+      current.warships[t] += (units.warships[t] ?? 0);
+    }
+    serverPlayer.troopsByRegion[regionId] = current;
+    this.broadcastState(room);
+  }
+
+  handleTransferTroops(
+    socket: ServerSocket,
+    fromRegionId: string,
+    toRegionId: string,
+    units: import('@undercover/shared').MilitaryUnits,
+  ): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const phase = snapshot.value;
+    if (phase !== 'preparation' && phase !== 'actionSelection' && phase !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    // Validate: both regions belong to this player and are not destroyed/occupied
+    const fromRegion = serverPlayer.regions.find(r => r.id === fromRegionId && !r.occupiedBy && !r.destroyed);
+    const toRegion   = serverPlayer.regions.find(r => r.id === toRegionId   && !r.occupiedBy && !r.destroyed);
+    if (!fromRegion || !toRegion) return;
+    if (fromRegionId === toRegionId) return;
+
+    const fromTroops = serverPlayer.troopsByRegion[fromRegionId];
+    if (!fromTroops) return;
+
+    // Validate: enough non-exhausted troops in fromRegion
+    const exhaustedFrom = serverPlayer.exhaustedTroopsByRegion[fromRegionId] ?? { infantry:[0,0,0], tanks:[0,0,0], planes:[0,0,0], warships:[0,0,0] };
+    for (let t = 0; t < 3; t++) {
+      if ((units.infantry[t] ?? 0) > fromTroops.infantry[t] - exhaustedFrom.infantry[t]) return;
+      if ((units.tanks[t]    ?? 0) > fromTroops.tanks[t]    - exhaustedFrom.tanks[t])    return;
+      if ((units.planes[t]   ?? 0) > fromTroops.planes[t]   - exhaustedFrom.planes[t])   return;
+      if ((units.warships[t] ?? 0) > fromTroops.warships[t] - exhaustedFrom.warships[t]) return;
+    }
+
+    const toTroops = serverPlayer.troopsByRegion[toRegionId] ?? {
+      infantry: [0, 0, 0] as [number, number, number],
+      tanks:    [0, 0, 0] as [number, number, number],
+      planes:   [0, 0, 0] as [number, number, number],
+      warships: [0, 0, 0] as [number, number, number],
+    };
+    const exhaustedTo = serverPlayer.exhaustedTroopsByRegion[toRegionId] ?? {
+      infantry: [0, 0, 0] as [number, number, number],
+      tanks:    [0, 0, 0] as [number, number, number],
+      planes:   [0, 0, 0] as [number, number, number],
+      warships: [0, 0, 0] as [number, number, number],
+    };
+
+    for (let t = 0; t < 3; t++) {
+      fromTroops.infantry[t] -= (units.infantry[t] ?? 0);
+      fromTroops.tanks[t]    -= (units.tanks[t]    ?? 0);
+      fromTroops.planes[t]   -= (units.planes[t]   ?? 0);
+      fromTroops.warships[t] -= (units.warships[t] ?? 0);
+      toTroops.infantry[t]   += (units.infantry[t] ?? 0);
+      toTroops.tanks[t]      += (units.tanks[t]    ?? 0);
+      toTroops.planes[t]     += (units.planes[t]   ?? 0);
+      toTroops.warships[t]   += (units.warships[t] ?? 0);
+      // Les troupes arrivées sont épuisées pour ce tour
+      exhaustedTo.infantry[t] += (units.infantry[t] ?? 0);
+      exhaustedTo.tanks[t]    += (units.tanks[t]    ?? 0);
+      exhaustedTo.planes[t]   += (units.planes[t]   ?? 0);
+      exhaustedTo.warships[t] += (units.warships[t] ?? 0);
+    }
+    serverPlayer.exhaustedTroopsByRegion[toRegionId] = exhaustedTo;
+
+    // Clean up empty regions
+    const isEmpty = (m: import('@undercover/shared').MilitaryUnits) =>
+      m.infantry.every(v => v === 0) && m.tanks.every(v => v === 0) &&
+      m.planes.every(v => v === 0) && m.warships.every(v => v === 0);
+    if (isEmpty(fromTroops)) delete serverPlayer.troopsByRegion[fromRegionId];
+    serverPlayer.troopsByRegion[toRegionId] = toTroops;
+
+    this.broadcastState(room);
+  }
+
+  handleAttackProvince(socket: ServerSocket, order: import('@undercover/shared').AttackOrder): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    if (snapshot.value !== 'actionSelection' && snapshot.value !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    const { fromRegionId, toRegionId, units } = order;
+
+    // Validation : le joueur possède fromRegion OU y a des troupes déployées (territoire conquis mais pas encore transféré)
+    const fromRegion = serverPlayer.regions.find(r => r.id === fromRegionId && !r.occupiedBy && !r.destroyed);
+    const hasTroopsInFrom = !!serverPlayer.troopsByRegion[fromRegionId];
+    if (!fromRegion && !hasTroopsInFrom) return;
+
+    // Validation : provinces adjacentes
+    if (!areAdjacent(fromRegionId, toRegionId)) {
+      socket.emit('room:error', { message: 'Ces provinces ne sont pas adjacentes.' });
+      return;
+    }
+
+    // Validation : toRegion appartient à un ennemi (pas au joueur lui-même)
+    const ownsTarget = serverPlayer.regions.some(r => r.id === toRegionId);
+    if (ownsTarget) return;
+
+    // Validation : guerre active contre l'owner de la cible
+    const targetOwner = [...context.players.values()].find(p =>
+      p.regions.some(r => r.id === toRegionId)
+    );
+    if (targetOwner) {
+      const warExists = context.activeWars.some(w =>
+        w.status === 'active' &&
+        ((w.attackerId === player.id && w.defenderId === targetOwner.id) ||
+         (w.defenderId === player.id && w.attackerId === targetOwner.id))
+      );
+      if (!warExists) {
+        socket.emit('room:error', { message: 'Vous devez déclarer la guerre avant d\'attaquer.' });
+        return;
+      }
+    } else {
+      // Province neutre → utiliser war:occupyNeutral
+      return;
+    }
+
+    // Validation : assez de troupes non-épuisées dans fromRegion
+    const fromTroops = serverPlayer.troopsByRegion[fromRegionId];
+    if (!fromTroops) { socket.emit('room:error', { message: 'Aucune troupe dans cette province.' }); return; }
+    const exhaustedFrom = serverPlayer.exhaustedTroopsByRegion[fromRegionId] ?? { infantry:[0,0,0], tanks:[0,0,0], planes:[0,0,0], warships:[0,0,0] };
+    for (let t = 0; t < 3; t++) {
+      if ((units.infantry[t] ?? 0) > fromTroops.infantry[t] - exhaustedFrom.infantry[t]) return;
+      if ((units.tanks[t]    ?? 0) > fromTroops.tanks[t]    - exhaustedFrom.tanks[t])    return;
+      if ((units.planes[t]   ?? 0) > fromTroops.planes[t]   - exhaustedFrom.planes[t])   return;
+      if ((units.warships[t] ?? 0) > fromTroops.warships[t] - exhaustedFrom.warships[t]) return;
+    }
+
+    // Déplacer les troupes immédiatement dans la province ennemie
+    const toTroops = serverPlayer.troopsByRegion[toRegionId] ?? {
+      infantry: [0, 0, 0] as [number, number, number],
+      tanks:    [0, 0, 0] as [number, number, number],
+      planes:   [0, 0, 0] as [number, number, number],
+      warships: [0, 0, 0] as [number, number, number],
+    };
+    const exhaustedTo = serverPlayer.exhaustedTroopsByRegion[toRegionId] ?? {
+      infantry: [0, 0, 0] as [number, number, number],
+      tanks:    [0, 0, 0] as [number, number, number],
+      planes:   [0, 0, 0] as [number, number, number],
+      warships: [0, 0, 0] as [number, number, number],
+    };
+    for (let t = 0; t < 3; t++) {
+      const mv = {
+        infantry: Math.min(units.infantry[t] ?? 0, fromTroops.infantry[t] - exhaustedFrom.infantry[t]),
+        tanks:    Math.min(units.tanks[t]    ?? 0, fromTroops.tanks[t]    - exhaustedFrom.tanks[t]),
+        planes:   Math.min(units.planes[t]   ?? 0, fromTroops.planes[t]   - exhaustedFrom.planes[t]),
+        warships: Math.min(units.warships[t] ?? 0, fromTroops.warships[t] - exhaustedFrom.warships[t]),
+      };
+      fromTroops.infantry[t] -= mv.infantry;
+      fromTroops.tanks[t]    -= mv.tanks;
+      fromTroops.planes[t]   -= mv.planes;
+      fromTroops.warships[t] -= mv.warships;
+      toTroops.infantry[t]   += mv.infantry;
+      toTroops.tanks[t]      += mv.tanks;
+      toTroops.planes[t]     += mv.planes;
+      toTroops.warships[t]   += mv.warships;
+      exhaustedTo.infantry[t] += mv.infantry;
+      exhaustedTo.tanks[t]    += mv.tanks;
+      exhaustedTo.planes[t]   += mv.planes;
+      exhaustedTo.warships[t] += mv.warships;
+    }
+    const isEmpty = (m: import('@undercover/shared').MilitaryUnits) =>
+      m.infantry.every(v => v === 0) && m.tanks.every(v => v === 0) &&
+      m.planes.every(v => v === 0)   && m.warships.every(v => v === 0);
+    if (isEmpty(fromTroops)) delete serverPlayer.troopsByRegion[fromRegionId];
+    serverPlayer.troopsByRegion[toRegionId] = toTroops;
+    serverPlayer.exhaustedTroopsByRegion[toRegionId] = exhaustedTo;
+    this.broadcastState(room);
+  }
+
+  handleOccupyNeutral(socket: ServerSocket, fromRegionId: string, toRegionId: string, units?: import('@undercover/shared').MilitaryUnits): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    if (snapshot.value !== 'actionSelection' && snapshot.value !== 'roundSummary') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    // Validation : fromRegion appartient au joueur
+    if (!serverPlayer.regions.some(r => r.id === fromRegionId && !r.occupiedBy && !r.destroyed)) return;
+
+    // Validation : adjacence
+    if (!areAdjacent(fromRegionId, toRegionId)) {
+      socket.emit('room:error', { message: 'Ces provinces ne sont pas adjacentes.' });
+      return;
+    }
+
+    // Validation : province neutre (aucun joueur ne la possède)
+    const alreadyOwned = [...context.players.values()].some(p => p.regions.some(r => r.id === toRegionId));
+    if (alreadyOwned) { socket.emit('room:error', { message: 'Cette province appartient déjà à un joueur.' }); return; }
+
+    // Occupation immédiate : transférer la région au joueur
+    const { name: provinceName, terrain: provinceTerrain } = getProvinceData(toRegionId);
+
+    const newRegion: import('@undercover/shared').Region = {
+      id: toRegionId,
+      name: provinceName,
+      population: 0.5,
+      productionCapacity: 50,
+      terrain: provinceTerrain,
+      destroyed: false,
+      destroyedUntilRound: null,
+      occupiedBy: null,
+      resistanceRemaining: 0,
+      warIntegrity: 100,
+      contestedByWarId: null,
+      fortified: false,
+    };
+
+    serverPlayer.regions.push(newRegion);
+
+    // Si des unités sont fournies, les déplacer depuis fromRegion vers toRegion
+    if (units) {
+      const fromTroops = serverPlayer.troopsByRegion[fromRegionId];
+      if (fromTroops) {
+        const toTroops = serverPlayer.troopsByRegion[toRegionId] ?? {
+          infantry: [0, 0, 0] as [number, number, number],
+          tanks:    [0, 0, 0] as [number, number, number],
+          planes:   [0, 0, 0] as [number, number, number],
+          warships: [0, 0, 0] as [number, number, number],
+        };
+        for (let t = 0; t < 3; t++) {
+          const mv = {
+            infantry: Math.min(units.infantry[t] ?? 0, fromTroops.infantry[t]),
+            tanks:    Math.min(units.tanks[t]    ?? 0, fromTroops.tanks[t]),
+            planes:   Math.min(units.planes[t]   ?? 0, fromTroops.planes[t]),
+            warships: Math.min(units.warships[t] ?? 0, fromTroops.warships[t]),
+          };
+          fromTroops.infantry[t] -= mv.infantry;
+          fromTroops.tanks[t]    -= mv.tanks;
+          fromTroops.planes[t]   -= mv.planes;
+          fromTroops.warships[t] -= mv.warships;
+          toTroops.infantry[t]   += mv.infantry;
+          toTroops.tanks[t]      += mv.tanks;
+          toTroops.planes[t]     += mv.planes;
+          toTroops.warships[t]   += mv.warships;
+        }
+        const isEmpty = (m: import('@undercover/shared').MilitaryUnits) =>
+          m.infantry.every(v => v === 0) && m.tanks.every(v => v === 0) &&
+          m.planes.every(v => v === 0)   && m.warships.every(v => v === 0);
+        if (isEmpty(fromTroops)) delete serverPlayer.troopsByRegion[fromRegionId];
+        serverPlayer.troopsByRegion[toRegionId] = toTroops;
+      }
+    }
+
+    this.broadcastState(room);
+  }
+
+  handleFortifyProvince(socket: ServerSocket, regionId: string): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    if (snapshot.value !== 'actionSelection' && snapshot.value !== 'preparation') return;
+
+    const context = snapshot.context;
+    const serverPlayer = context.players.get(player.id);
+    if (!serverPlayer) return;
+
+    // Validate player owns the region
+    const region = serverPlayer.regions.find(r => r.id === regionId && !r.destroyed);
+    if (!region) { socket.emit('room:error', { message: 'Cette province ne vous appartient pas.' }); return; }
+
+    // Validate sufficient funds
+    if (serverPlayer.money < FORTIFY_COST) {
+      socket.emit('room:error', { message: `Fonds insuffisants (${FORTIFY_COST}$ requis).` });
+      return;
+    }
+
+    // Already fortified
+    if (region.fortified) {
+      socket.emit('room:error', { message: 'Cette province est déjà fortifiée.' });
+      return;
+    }
+
+    serverPlayer.money -= FORTIFY_COST;
+    region.fortified = true;
+
+    this.broadcastState(room);
   }
 
   handleReady(socket: ServerSocket): void {
@@ -341,8 +880,11 @@ export class EcoWarRoomManager {
   handleTradePropose(
     socket: ServerSocket,
     targetId: string,
-    offer: { product: ProductCategory; quantity: number }[],
+    offer: { resource: ResourceType; quantity: number }[],
     moneyAmount: number,
+    vehicles?: VehicleTradeItem[],
+    maintenanceParts?: { tier: 1 | 2 | 3 | 4; quantity: number }[],
+    militaryUnits?: MilitaryUnitTradeItem[],
   ): void {
     const resolved = this.resolveRoomAndPlayer(socket);
     if (!resolved) return;
@@ -357,11 +899,33 @@ export class EcoWarRoomManager {
     // Private trades: target must exist
     if (!isPublic && !room.players.has(targetId)) return;
 
+    // Validate seller has the vehicles they're offering
+    const seller = snapshot.context.players.get(player.id);
+    if (vehicles && vehicles.length > 0 && seller) {
+      for (const item of vehicles) {
+        const owned = seller.fleet.vehicles.filter(
+          v => v.type === item.vehicleType && v.tier === item.tier,
+        ).length;
+        if (owned < item.quantity) return;
+      }
+    }
+
+    // Validate seller has the military units they're offering
+    if (militaryUnits && militaryUnits.length > 0 && seller) {
+      for (const item of militaryUnits) {
+        const owned = seller.military.units[item.unitType][item.tier - 1] ?? 0;
+        if (owned < item.quantity) return;
+      }
+    }
+
     const trade: TradeOffer = {
       id: randomUUID(),
       fromId: player.id,
       toId: targetId,
       offer,
+      vehicles: vehicles && vehicles.length > 0 ? vehicles : undefined,
+      maintenanceParts: maintenanceParts && maintenanceParts.length > 0 ? maintenanceParts : undefined,
+      militaryUnits: militaryUnits && militaryUnits.length > 0 ? militaryUnits : undefined,
       moneyAmount: Math.max(0, Math.round(moneyAmount)),
       status: 'pending',
       roundProposed: snapshot.context.currentRound,
@@ -397,31 +961,234 @@ export class EcoWarRoomManager {
     if (!trade || trade.status !== 'pending') return;
 
     const isPublic = trade.toId === '__public__';
-    // Private trade: only the designated target can respond
     if (!isPublic && trade.toId !== player.id) return;
 
-    trade.status = accepted ? 'accepted' : 'rejected';
-
-    // For private trades: set the actual buyer to the respondent
-    if (trade.toId === '__public__' && accepted) {
-      trade.toId = player.id;
+    if (!accepted) {
+      trade.status = 'rejected';
+      const buyerState = snapshot.context.players.get(player.id);
+      if (buyerState) {
+        buyerState.incomingTrades = buyerState.incomingTrades.filter(t => t.id !== tradeId);
+      }
+      socket.emit('trade:result', { tradeId, accepted: false });
+      this.broadcastState(room);
+      return;
     }
 
-    // Remove from private incoming trades
-    const targetState = snapshot.context.players.get(player.id);
-    if (targetState) {
-      targetState.incomingTrades = targetState.incomingTrades.filter(t => t.id !== tradeId);
+    // First acceptance → start auction
+    const buyerId = player.id;
+    const sellerId = trade.fromId;
+    if (buyerId === sellerId) return;
+
+    const seller = snapshot.context.players.get(sellerId);
+    const buyer  = snapshot.context.players.get(buyerId);
+    if (!seller || !buyer) return;
+
+    // Mark trade as auctioning so it's not processed by resolveCommerce
+    if (isPublic) trade.toId = buyerId;
+    trade.status = 'auctioning';
+
+    const auction: TradeAuction = {
+      id: randomUUID(),
+      tradeId: trade.id,
+      fromId: sellerId,
+      fromName: seller.countryName,
+      offer: trade.offer.map(o => ({ resource: o.resource, quantity: o.quantity })),
+      vehicles: trade.vehicles,
+      basePrice: trade.moneyAmount,
+      currentPrice: trade.moneyAmount,
+      currentWinnerId: buyerId,
+      currentWinnerName: buyer.countryName,
+      expiresAt: Date.now() + AUCTION_DURATION_MS,
+    };
+
+    const timer = setTimeout(() => {
+      this.resolveAuction(room, auction.id);
+    }, AUCTION_DURATION_MS);
+
+    room.activeAuctions.set(auction.id, { auction, timer });
+
+    this.broadcastState(room);
+  }
+
+  handleAuctionBid(socket: ServerSocket, auctionId: string): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const entry = room.activeAuctions.get(auctionId);
+    if (!entry) return;
+    const { auction } = entry;
+
+    // Seller cannot bid; current winner cannot outbid themselves
+    if (player.id === auction.fromId) return;
+    if (player.id === auction.currentWinnerId) return;
+
+    const snapshot = room.actor.getSnapshot();
+    const bidder = snapshot.context.players.get(player.id);
+    if (!bidder) return;
+
+    const newPrice = auction.currentPrice + 15;
+
+    // Check bidder can afford new price (rough pre-check; final check at resolution)
+    if (bidder.money < newPrice) return;
+
+    auction.currentPrice = newPrice;
+    auction.currentWinnerId = player.id;
+    auction.currentWinnerName = bidder.countryName;
+
+    this.broadcastState(room);
+  }
+
+  private resolveAuction(room: Room, auctionId: string): void {
+    const entry = room.activeAuctions.get(auctionId);
+    if (!entry) return;
+    const { auction } = entry;
+
+    room.activeAuctions.delete(auctionId);
+
+    const snapshot = room.actor.getSnapshot();
+    const seller = snapshot.context.players.get(auction.fromId);
+    const buyer  = snapshot.context.players.get(auction.currentWinnerId);
+
+    const trade = snapshot.context.activeTrades.find(t => t.id === auction.tradeId);
+
+    let success = false;
+
+    if (seller && buyer && seller.id !== buyer.id) {
+      // Calculate effective tax rate (org / embargo)
+      const sameOrg     = areInSameCommercialOrg(seller, buyer, snapshot.context);
+      const embargoRate = getEmbargoSurcharge(buyer, seller, snapshot.context);
+      const taxRate     = sameOrg ? 0 : (embargoRate > 0 ? embargoRate : ORG_TRADE_TAX_MIN);
+      const taxAmount   = Math.floor(auction.currentPrice * taxRate);
+      const totalPaid   = auction.currentPrice + taxAmount;
+
+      // Verify seller can still deliver resources
+      let sellerCanDeliver = true;
+      for (const item of auction.offer) {
+        if ((seller.resources[item.resource as ResourceType] ?? 0) < item.quantity) {
+          sellerCanDeliver = false;
+          break;
+        }
+      }
+
+      // Verify seller still has the vehicles they offered
+      if (sellerCanDeliver && auction.vehicles) {
+        for (const vItem of auction.vehicles) {
+          const owned = seller.fleet.vehicles.filter(
+            v => v.type === vItem.vehicleType && v.tier === vItem.tier,
+          ).length;
+          if (owned < vItem.quantity) { sellerCanDeliver = false; break; }
+        }
+      }
+
+      if (sellerCanDeliver && buyer.money >= totalPaid) {
+        buyer.money   -= totalPaid;
+        seller.money  += auction.currentPrice;
+        for (const item of auction.offer) {
+          const res = item.resource as ResourceType;
+          seller.resources[res] = Math.max(0, (seller.resources[res] ?? 0) - item.quantity);
+          buyer.resources[res]  = (buyer.resources[res] ?? 0) + item.quantity;
+        }
+        // Transfer vehicles
+        if (auction.vehicles) {
+          for (const vItem of auction.vehicles) {
+            let remaining = vItem.quantity;
+            seller.fleet.vehicles = seller.fleet.vehicles.filter(v => {
+              if (remaining > 0 && v.type === vItem.vehicleType && v.tier === vItem.tier) {
+                buyer.fleet.vehicles.push({ ...v });
+                remaining--;
+                return false;
+              }
+              return true;
+            });
+            // Recalculate totalCapacity
+            const spec = VEHICLE_SPEC_MAP[vItem.vehicleType]?.[vItem.tier];
+            if (spec) {
+              seller.fleet.totalCapacity = Math.max(0, seller.fleet.totalCapacity - spec.capacity * vItem.quantity);
+              buyer.fleet.totalCapacity  = (buyer.fleet.totalCapacity ?? 0)  + spec.capacity * vItem.quantity;
+            }
+          }
+        }
+        if (trade) trade.status = 'completed';
+        success = true;
+      } else {
+        if (trade) trade.status = 'rejected';
+      }
+    } else {
+      if (trade) trade.status = 'rejected';
     }
 
-    // Notify proposer
-    const fromPlayer = room.players.get(trade.fromId);
-    if (fromPlayer?.socketId) {
-      this.io.to(fromPlayer.socketId).emit('trade:result', { tradeId, accepted });
+    // Notify all players of auction result
+    this.io.to(room.code).emit('trade:result', {
+      tradeId: auction.tradeId,
+      accepted: success,
+    });
+
+    this.broadcastState(room);
+  }
+
+  // ─── Region Purchase ────────────────────────────────────────
+
+  handleRegionPurchaseRespond(socket: ServerSocket, offerId: string, accepted: boolean): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player: sellerRoomPlayer } = resolved;
+
+    const context = room.actor.getSnapshot().context;
+    const seller = context.players.get(sellerRoomPlayer.id);
+    if (!seller) return;
+
+    const offerIdx = seller.incomingRegionPurchases.findIndex(o => o.id === offerId && o.status === 'pending');
+    if (offerIdx === -1) return;
+
+    const offer = seller.incomingRegionPurchases[offerIdx];
+    const buyer = context.players.get(offer.fromId);
+    const buyerSocketId = buyer ? room.players.get(buyer.id)?.socketId : null;
+
+    if (!accepted || !buyer) {
+      offer.status = 'rejected';
+      seller.incomingRegionPurchases.splice(offerIdx, 1);
+      if (buyerSocketId) this.io.to(buyerSocketId).emit('region:purchaseResult', { offerId, accepted: false, regionName: offer.regionName });
+      return;
     }
 
-    // Notify respondent (and all for public, since everyone sees market)
-    socket.emit('trade:result', { tradeId, accepted });
+    // Validate: buyer must afford it and seller must still own the region
+    const region = seller.regions.find(r => r.id === offer.regionId && !r.occupiedBy && !r.destroyed);
+    if (!region || buyer.money < offer.price) {
+      offer.status = 'rejected';
+      seller.incomingRegionPurchases.splice(offerIdx, 1);
+      if (buyerSocketId) this.io.to(buyerSocketId).emit('region:purchaseResult', { offerId, accepted: false, regionName: offer.regionName });
+      return;
+    }
 
+    // Transfer
+    offer.status = 'accepted';
+    seller.incomingRegionPurchases.splice(offerIdx, 1);
+
+    // Move region object
+    const regionIdx = seller.regions.findIndex(r => r.id === region.id);
+    seller.regions.splice(regionIdx, 1);
+    region.occupiedBy = null;
+    region.resistanceRemaining = 0;
+    buyer.regions.push(region);
+
+    // Transfer population proportional to region share (before removal, so include removed region)
+    const totalSellerRegionPop = seller.regions.reduce((sum: number, r) => sum + r.population, 0) + region.population;
+    const fraction = totalSellerRegionPop > 0 ? region.population / totalSellerRegionPop : 0;
+    const transferredPop = seller.population.total * fraction;
+    seller.population.total = Math.max(0.1, seller.population.total - transferredPop);
+    buyer.population.total += transferredPop;
+
+    // Money transfer
+    buyer.money -= offer.price;
+    seller.money += offer.price;
+
+    // Notify both parties
+    const sellerSocketId = room.players.get(seller.id)?.socketId;
+    if (buyerSocketId) this.io.to(buyerSocketId).emit('region:purchaseResult', { offerId, accepted: true, regionName: region.name });
+    if (sellerSocketId) this.io.to(sellerSocketId).emit('region:purchaseResult', { offerId, accepted: true, regionName: region.name });
+
+    // Broadcast updated game state
     this.broadcastState(room);
   }
 
@@ -440,26 +1207,140 @@ export class EcoWarRoomManager {
     const snapshot = room.actor.getSnapshot();
     if (snapshot.value === 'lobby' || snapshot.value === 'countrySelection' || snapshot.value === 'victory') return;
 
-    const founderIds = [player.id, ...invitedPlayerIds.filter(id => id !== player.id && room.players.has(id))];
-    const org = createOrganization(name, type, founderIds, snapshot.context.currentRound);
-    if (!org) {
+    // Filter to valid invited players (exclude creator, must be in room)
+    const validInvited = invitedPlayerIds.filter(id => id !== player.id && room.players.has(id));
+
+    // Need at least 2 invited so that total with creator = 3
+    if (validInvited.length < 2) {
       socket.emit('room:error', { message: 'Minimum 3 membres requis pour créer une organisation.' });
       return;
     }
 
-    snapshot.context.organizations.push(org);
+    const creatorState = snapshot.context.players.get(player.id);
 
-    // Update member references
-    for (const memberId of org.memberIds) {
-      const memberState = snapshot.context.players.get(memberId);
-      if (memberState) {
-        memberState.organizationMemberships.push(org.id);
+    const pending: PendingOrg = {
+      id: randomUUID(),
+      name,
+      type,
+      creatorId: player.id,
+      creatorName: creatorState?.countryName ?? player.name,
+      acceptedIds: [player.id],
+      pendingIds: validInvited,
+    };
+
+    room.pendingOrgs.set(pending.id, pending);
+
+    // Notify each invited player individually so they all see the invite
+    for (const invitedId of validInvited) {
+      const invitedPlayer = room.players.get(invitedId);
+      if (invitedPlayer?.socketId) {
+        this.io.to(invitedPlayer.socketId).emit('notification:alert', {
+          id: randomUUID(),
+          type: 'org_vote_started',
+          title: 'Invitation organisation',
+          message: `${pending.creatorName} vous invite à rejoindre « ${name} »`,
+          icon: '🏛️',
+          severity: 'info',
+          round: snapshot.context.currentRound,
+          read: false,
+        });
       }
     }
 
-    // Notify all members
-    this.io.to(room.code).emit('org:updated', { org });
     this.broadcastState(room);
+  }
+
+  handleOrgRespondInvite(socket: ServerSocket, pendingOrgId: string, accepted: boolean): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const pending = room.pendingOrgs.get(pendingOrgId);
+    if (!pending) return;
+    if (!pending.pendingIds.includes(player.id)) return;
+
+    // Move player from pendingIds to acceptedIds or cancel
+    pending.pendingIds = pending.pendingIds.filter(id => id !== player.id);
+
+    if (!accepted) {
+      // One refusal cancels the org
+      room.pendingOrgs.delete(pendingOrgId);
+      this.broadcastState(room);
+      return;
+    }
+
+    pending.acceptedIds.push(player.id);
+
+    // If everyone accepted
+    if (pending.pendingIds.length === 0) {
+      room.pendingOrgs.delete(pendingOrgId);
+
+      const snapshot = room.actor.getSnapshot();
+      const org = createOrganization(pending.name, pending.type, pending.acceptedIds, snapshot.context.currentRound);
+      if (org) {
+        snapshot.context.organizations.push(org);
+        for (const memberId of org.memberIds) {
+          const memberState = snapshot.context.players.get(memberId);
+          if (memberState) memberState.organizationMemberships.push(org.id);
+        }
+        this.io.to(room.code).emit('org:updated', { org });
+      }
+    }
+
+    this.broadcastState(room);
+  }
+
+  handleOrgRequestJoin(socket: ServerSocket, orgId: string): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const org = snapshot.context.organizations.find(o => o.id === orgId);
+    if (!org) return;
+
+    const requester = snapshot.context.players.get(player.id);
+    const request = addJoinRequest(org, player.id, requester?.countryName ?? player.name, snapshot.context.currentRound);
+    if (request) {
+      this.broadcastState(room);
+    }
+  }
+
+  handleOrgVoteJoinRequest(socket: ServerSocket, orgId: string, requestId: string, vote: boolean): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const org = snapshot.context.organizations.find(o => o.id === orgId);
+    if (!org) return;
+
+    const success = voteOnJoinRequest(org, requestId, player.id, vote, snapshot.context.players);
+    if (success) {
+      this.io.to(room.code).emit('org:updated', { org });
+      this.broadcastState(room);
+    }
+  }
+
+  handleOrgProposeExpel(socket: ServerSocket, orgId: string, targetId: string): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const org = snapshot.context.organizations.find(o => o.id === orgId);
+    if (!org) return;
+
+    const vote = proposeExpelMember(org, player.id, targetId, snapshot.context.currentRound);
+    if (vote) {
+      for (const memberId of org.memberIds) {
+        const memberSocket = room.players.get(memberId);
+        if (memberSocket?.socketId) {
+          this.io.to(memberSocket.socketId).emit('org:voteStarted', { orgId: org.id, voteId: vote.id, description: vote.description });
+        }
+      }
+      this.broadcastState(room);
+    }
   }
 
   handleOrgVote(socket: ServerSocket, orgId: string, voteId: string, vote: boolean): void {
@@ -495,7 +1376,29 @@ export class EcoWarRoomManager {
     this.broadcastState(room);
   }
 
-  handleOrgProposeVote(socket: ServerSocket, orgId: string, type: string, description: string): void {
+  handleOrgProposeEmbargo(socket: ServerSocket, orgId: string, targetId: string, rate: number): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const org = snapshot.context.organizations.find(o => o.id === orgId);
+    if (!org) return;
+    const target = snapshot.context.players.get(targetId);
+
+    const vote = proposeEmbargo(org, player.id, targetId, target?.countryName ?? targetId, rate, snapshot.context.currentRound);
+    if (vote) {
+      for (const memberId of org.memberIds) {
+        const memberSocket = room.players.get(memberId);
+        if (memberSocket?.socketId) {
+          this.io.to(memberSocket.socketId).emit('org:voteStarted', { orgId: org.id, voteId: vote.id, description: vote.description });
+        }
+      }
+      this.broadcastState(room);
+    }
+  }
+
+  handleOrgProposeAidRequest(socket: ServerSocket, orgId: string, motivationText: string): void {
     const resolved = this.resolveRoomAndPlayer(socket);
     if (!resolved) return;
     const { room, player } = resolved;
@@ -504,21 +1407,30 @@ export class EcoWarRoomManager {
     const org = snapshot.context.organizations.find(o => o.id === orgId);
     if (!org) return;
 
-    const vote = proposeVote(org, player.id, type as VoteType, description, snapshot.context.currentRound);
+    const vote = proposeAidRequest(org, player.id, motivationText, snapshot.context.currentRound);
     if (vote) {
-      // Notify all members
       for (const memberId of org.memberIds) {
         const memberSocket = room.players.get(memberId);
         if (memberSocket?.socketId) {
-          this.io.to(memberSocket.socketId).emit('org:voteStarted', {
-            orgId: org.id,
-            voteId: vote.id,
-            description: vote.description,
-          });
+          this.io.to(memberSocket.socketId).emit('org:voteStarted', { orgId: org.id, voteId: vote.id, description: vote.description });
         }
       }
       this.broadcastState(room);
     }
+  }
+
+  handleOrgCastAmountVote(socket: ServerSocket, orgId: string, voteId: string, amount: number): void {
+    const resolved = this.resolveRoomAndPlayer(socket);
+    if (!resolved) return;
+    const { room, player } = resolved;
+
+    const snapshot = room.actor.getSnapshot();
+    const org = snapshot.context.organizations.find(o => o.id === orgId);
+    if (!org) return;
+
+    castAmountVote(org, voteId, player.id, amount, snapshot.context.players);
+    this.io.to(room.code).emit('org:updated', { org });
+    this.broadcastState(room);
   }
 
   // ─── Sanctions ──────────────────────────────────────────────
@@ -589,8 +1501,8 @@ export class EcoWarRoomManager {
   handleThreatDeclare(
     socket: ServerSocket,
     targetId: string,
-    targetInfrastructure: string,
-    demand: string,
+    targetInfrastructure: ThreatInfraTarget,
+    demand: ThreatDemand,
   ): void {
     const resolved = this.resolveRoomAndPlayer(socket);
     if (!resolved) return;
@@ -734,6 +1646,14 @@ export class EcoWarRoomManager {
     const prevPhase = this.roomPreviousPhases.get(room.code);
     const currPhase = snapshot.value as string;
     this.roomPreviousPhases.set(room.code, currPhase);
+
+    // Emit resolution:complete when entering resolution phase
+    if (currPhase === 'resolution' && prevPhase !== 'resolution') {
+      const log = snapshot.context.resolutionLog;
+      if (log.length > 0) {
+        this.io.to(room.code).emit('resolution:complete', { roundSummary: log });
+      }
+    }
 
     // Emit journal:headlines when entering marketEvent phase (tech spec §4 S2C events)
     if (currPhase === 'marketEvent' && prevPhase !== 'marketEvent') {
@@ -905,6 +1825,8 @@ export class EcoWarRoomManager {
         militaryPower: getMilitaryPowerLabel(mp?.military.effectiveForce || 0),
         atWar: mp?.activeEffects.some(e => e.type === 'war_attacker' || e.type === 'war_defender') || false,
         organizationIds: mp?.organizationMemberships || [],
+        regions: mp?.regions || [],
+        population: mp?.population.total || 0,
       });
     }
 
@@ -935,7 +1857,7 @@ export class EcoWarRoomManager {
       }));
 
     return {
-      phase: context.phase,
+      phase: this.resolvePhase(room.actor.getSnapshot()),
       currentRound: context.currentRound,
       config: context.config,
       timer: this.actionTimerRemaining.get(room.code) || null,
@@ -947,6 +1869,8 @@ export class EcoWarRoomManager {
       marketEvent: context.marketEvents[0] || null,
       journalHeadlines: context.journalHeadlines,
       pendingThreats,
+      activeAuctions: [...room.activeAuctions.values()].map(e => e.auction),
+      pendingOrgs: [...room.pendingOrgs.values()],
       activeSanctions: (() => {
         const seen = new Set<string>();
         const result: { targetId: string; imposedBy: string; type: 'trade' | 'tourism' | 'full' }[] = [];
@@ -997,16 +1921,85 @@ export class EcoWarRoomManager {
         ...mp.military,
         weapons: mp.military.weapons.map(w => ({ ...w })),
       },
+      mining: {
+        oil:        { ...mp.mining.oil },
+        iron:       { ...mp.mining.iron },
+        coal:       { ...mp.mining.coal },
+        rareEarths: { ...mp.mining.rareEarths },
+        precious:   { ...mp.mining.precious },
+        uranium:    { ...mp.mining.uranium },
+      },
+      agriculture: {
+        plots:          mp.agriculture.plots.map(p => ({ ...p })),
+        irrigationLevel: mp.agriculture.irrigationLevel,
+      },
+      livestock: {
+        herds: mp.livestock.herds.map(h => ({ ...h })),
+      },
+      marine: { ...mp.marine },
+      fleet: {
+        vehicles: mp.fleet.vehicles.map(v => ({ ...v })),
+        totalCapacity: mp.fleet.vehicles.reduce((s, v) => s + v.capacity, 0),
+      },
+      maintenanceParts: mp.maintenanceParts.map(p => ({ ...p })),
+      troopsByRegion: Object.fromEntries(
+        Object.entries(mp.troopsByRegion).map(([k, v]) => [k, {
+          infantry: [...v.infantry] as [number, number, number],
+          tanks:    [...v.tanks]    as [number, number, number],
+          planes:   [...v.planes]   as [number, number, number],
+          warships: [...v.warships] as [number, number, number],
+        }])
+      ),
+      exhaustedTroopsByRegion: Object.fromEntries(
+        Object.entries(mp.exhaustedTroopsByRegion).map(([k, v]) => [k, {
+          infantry: [...v.infantry] as [number, number, number],
+          tanks:    [...v.tanks]    as [number, number, number],
+          planes:   [...v.planes]   as [number, number, number],
+          warships: [...v.warships] as [number, number, number],
+        }])
+      ),
+      enemyTroopsByRegion: (() => {
+        // Provinces où le joueur courant a des troupes OU possède la province
+        const myRegionIds = new Set(mp.regions.map(r => r.id));
+        const myTroopRegions = new Set(Object.keys(mp.troopsByRegion));
+        const relevantRegions = new Set([...myRegionIds, ...myTroopRegions]);
+        const result: Record<string, { playerId: string; playerName: string; units: import('@undercover/shared').MilitaryUnits }[]> = {};
+        for (const [otherId, other] of context.players) {
+          if (otherId === playerId) continue;
+          for (const [regionId, troops] of Object.entries(other.troopsByRegion)) {
+            if (!relevantRegions.has(regionId)) continue;
+            const total = troops.infantry.reduce((s,v)=>s+v,0) + troops.tanks.reduce((s,v)=>s+v,0)
+              + troops.planes.reduce((s,v)=>s+v,0) + troops.warships.reduce((s,v)=>s+v,0);
+            if (total === 0) continue;
+            if (!result[regionId]) result[regionId] = [];
+            result[regionId].push({
+              playerId: otherId,
+              playerName: other.countryName,
+              units: {
+                infantry: [...troops.infantry] as [number, number, number],
+                tanks:    [...troops.tanks]    as [number, number, number],
+                planes:   [...troops.planes]   as [number, number, number],
+                warships: [...troops.warships] as [number, number, number],
+              },
+            });
+          }
+        }
+        return result;
+      })(),
+      productionChoices: { ...mp.productionChoices },
       availableActions: mp.availableActions,
       submittedActions: mp.submittedActions.length > 0 ? [...mp.submittedActions] : null,
       espionageResults: [...mp.espionageResults],
       incomingTrades: [...mp.incomingTrades],
+      incomingRegionPurchases: [...mp.incomingRegionPurchases],
       notifications: [...mp.notifications],
       organizationMemberships: [...mp.organizationMemberships],
       activeSanctions: [...mp.activeSanctions],
       gdp: mp.gdp,
       influence: mp.influence,
       score: mp.score,
+      factoryProduction: buildFactoryProductionInfo(mp),
+      alerts: buildAlerts(mp),
     };
   }
 

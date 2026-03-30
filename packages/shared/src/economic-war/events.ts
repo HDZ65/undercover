@@ -9,7 +9,10 @@ import type {
   EcoWarPrivatePlayerState,
   PlayerAction,
   TradeOffer,
-  ProductCategory,
+  RegionPurchaseOffer,
+  ResourceType,
+  VehicleTradeItem,
+  MilitaryUnitTradeItem,
   OrganizationType,
   ResolutionEntry,
   MarketEvent,
@@ -19,6 +22,12 @@ import type {
   Threat,
   ThreatStatus,
   CountryProfile,
+  IndustrySector,
+  VehicleType,
+  VehicleTier,
+  WarAllocationSubmission,
+  MilitaryUnits,
+  AttackOrder,
 } from './types';
 
 // ─── Client → Server Events ───────────────────────────────────
@@ -42,16 +51,41 @@ export interface EcoWarClientToServerEvents {
 
   // --- Gameplay ---
   'game:submitActions': (data: { actions: PlayerAction[] }) => void;
+  'game:freeAction': (data: { action: PlayerAction }) => void;  // no slot consumed
   'game:ready': () => void;
   'game:abandon': () => void;
+
+  // --- Factory ---
+  'factory:upgrade': (data: { factoryId: string }) => void;
+  'factory:togglePause': (data: { factoryId: string }) => void;
 
   // --- Trade ---
   'trade:propose': (data: {
     targetId: string;
-    offer: { product: ProductCategory; quantity: number }[];
+    offer: { resource: ResourceType; quantity: number }[];
+    vehicles?: VehicleTradeItem[];
+    maintenanceParts?: { tier: 1 | 2 | 3 | 4; quantity: number }[];
+    militaryUnits?: MilitaryUnitTradeItem[];
     moneyAmount: number;
   }) => void;
   'trade:respond': (data: { tradeId: string; accepted: boolean }) => void;
+  'trade:bid': (data: { auctionId: string }) => void;
+
+  // --- Region Purchase ---
+  'region:purchaseRespond': (data: { offerId: string; accepted: boolean }) => void;
+
+  // --- War ---
+  'war:allocate': (data: WarAllocationSubmission) => void;
+  'war:recruitInfantry': (data: { tier: 1 | 2 | 3; count: number; regionId: string }) => void;
+  'war:trainInfantry': (data: { regionId: string; fromTier: 1 | 2; count: number }) => void;
+  'war:deployTroops': (data: { regionId: string; units: MilitaryUnits }) => void;
+  'war:transferTroops': (data: { fromRegionId: string; toRegionId: string; units: MilitaryUnits }) => void;
+  /** Attaque province-à-province : soumet un AttackOrder pour la résolution du tour */
+  'war:attackProvince': (data: AttackOrder) => void;
+  /** Occupe une province neutre (non revendiquée) depuis une province adjacente */
+  'war:occupyNeutral': (data: { fromRegionId: string; toRegionId: string; units?: MilitaryUnits }) => void;
+  /** Fortifie une province appartenant au joueur */
+  'war:fortifyProvince': (data: { regionId: string }) => void;
 
   // --- Organizations ---
   'org:create': (data: {
@@ -59,12 +93,25 @@ export interface EcoWarClientToServerEvents {
     type: OrganizationType;
     invitedPlayerIds: string[];
   }) => void;
+  'org:respondInvite': (data: { pendingOrgId: string; accepted: boolean }) => void;
+  'org:requestJoin': (data: { orgId: string }) => void;
+  'org:voteJoinRequest': (data: { orgId: string; requestId: string; vote: boolean }) => void;
+  'org:proposeExpel': (data: { orgId: string; targetId: string }) => void;
   'org:vote': (data: { orgId: string; voteId: string; vote: boolean }) => void;
   'org:leave': (data: { orgId: string }) => void;
-  'org:proposeVote': (data: {
+  'org:proposeEmbargo': (data: {
     orgId: string;
-    type: string;
-    description: string;
+    targetId: string;
+    amount: number;
+  }) => void;
+  'org:proposeAidRequest': (data: {
+    orgId: string;
+    motivationText: string;
+  }) => void;
+  'org:castAmountVote': (data: {
+    orgId: string;
+    voteId: string;
+    amount: number;
   }) => void;
 
   // --- Sanctions ---
@@ -83,6 +130,15 @@ export interface EcoWarClientToServerEvents {
   'threat:respond': (data: { threatId: string; accepted: boolean }) => void;
   'threat:execute': (data: { threatId: string }) => void;
   'threat:withdraw': (data: { threatId: string }) => void;
+
+  // --- Production Choice ---
+  'game:setProductionChoice': (data: {
+    sector: IndustrySector;
+    vehicleType?: VehicleType;
+    vehicleTier?: VehicleTier;
+    weaponTier?: 1 | 2 | 3 | 4;
+    partTier?: 1 | 2 | 3 | 4;
+  }) => void;
 
   // --- Chat ---
   'chat:message': (data: {
@@ -121,6 +177,10 @@ export interface EcoWarServerToClientEvents {
   // --- Trade ---
   'trade:incoming': (data: { trade: TradeOffer }) => void;
   'trade:result': (data: { tradeId: string; accepted: boolean }) => void;
+
+  // --- Region Purchase ---
+  'region:purchaseIncoming': (data: { offer: RegionPurchaseOffer; buyerName: string }) => void;
+  'region:purchaseResult': (data: { offerId: string; accepted: boolean; regionName: string }) => void;
 
   // --- Organizations ---
   'org:updated': (data: { org: Organization }) => void;

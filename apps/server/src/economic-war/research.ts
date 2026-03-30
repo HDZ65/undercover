@@ -4,11 +4,11 @@
 
 import type { ResearchBranch, Patent } from '@undercover/shared';
 import type { ServerPlayerState } from './types';
-import { RESEARCH_COST_PER_LEVEL, RESEARCH_EDUCATION_BOOST, PATENT_INCOME_BASE } from './constants';
+import { RESEARCH_BASE_COST, RESEARCH_COST_SCALING, RESEARCH_EDUCATION_BOOST, PATENT_INCOME_BASE } from './constants';
 import { randomUUID as uuid } from 'crypto';
 
 export function getResearchCost(branch: ResearchBranch, currentLevel: number): number {
-  return Math.round(RESEARCH_COST_PER_LEVEL * (1 + currentLevel / 20));
+  return Math.round(RESEARCH_BASE_COST * Math.pow(RESEARCH_COST_SCALING, currentLevel));
 }
 
 export function doResearch(

@@ -15,10 +15,18 @@ import type {
   TransportState,
   TourismState,
   MilitaryState,
+  MilitaryUnits,
+  MiningState,
+  AgricultureState,
+  LivestockState,
+  MarineState,
+  FleetState,
+  MaintenancePart,
   Region,
   PlayerAction,
   EspionageResult,
   TradeOffer,
+  RegionPurchaseOffer,
   Sanction,
   GameNotification,
   GameConfig,
@@ -30,6 +38,10 @@ import type {
   ResolutionEntry,
   LeaderboardEntry,
   EcoWarPhase,
+  IndustrySector,
+  VehicleType,
+  VehicleTier,
+  WarAllocationSubmission,
 } from '@undercover/shared';
 
 /** Full player state — server only, never sent to clients directly */
@@ -68,6 +80,40 @@ export interface ServerPlayerState {
   // ─── Military ───
   military: MilitaryState;
 
+  // ─── Mining (geological resources) ───
+  mining: MiningState;
+
+  // ─── Agriculture ───
+  agriculture: AgricultureState;
+
+  // ─── Livestock ───
+  livestock: LivestockState;
+
+  // ─── Marine ───
+  marine: MarineState;
+
+  // ─── Transport Fleet ───
+  fleet: FleetState;
+  maintenanceParts: MaintenancePart[];
+  /** Accumulateur de production fractionnaire de véhicules/armes/unités (server-only) */
+  vehicleProductionQueue: Record<string, number>; // e.g. { 'vehicleFactory': 0.75, 'armament': 1.2 }
+  /** War allocations submitted by this player for the current turn */
+  pendingWarAllocations: WarAllocationSubmission[];
+  /** Province-level attack orders submitted this turn (résolus en résolution) */
+  pendingAttackOrders: import('@undercover/shared').AttackOrder[];
+  /** Per-region troop deployment (troops moved out of reserve to specific regions) */
+  troopsByRegion: Record<string, MilitaryUnits>;
+  /** Troops that already moved this turn (can't move again) — cleared at resolution */
+  exhaustedTroopsByRegion: Record<string, MilitaryUnits>;
+  /** Choix de production par secteur pour ce tour */
+  productionChoices: Partial<Record<IndustrySector, {
+    vehicleType?: VehicleType;
+    vehicleTier?: VehicleTier;
+    weaponTier?: 1 | 2 | 3 | 4;
+    partTier?: 1 | 2 | 3 | 4;
+    ammoType?: 'munitions' | 'obus' | 'bombs';
+  }>>;
+
   // ─── Regions ───
   regions: Region[];
 
@@ -88,6 +134,7 @@ export interface ServerPlayerState {
   // ─── Private Info ───
   espionageResults: EspionageResult[];
   incomingTrades: TradeOffer[];
+  incomingRegionPurchases: RegionPurchaseOffer[];
   notifications: GameNotification[];
 
   // ─── Temporary Effects ───

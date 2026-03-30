@@ -6,14 +6,20 @@
 import type { ResolutionEntry, PlayerAction } from '@undercover/shared';
 import type { EcoWarGameContext } from './types.js';
 import { resolveSabotageActions } from './espionage.js';
-import { resolveWars, declareWar, degradeUnmaintainedWeapons, calculateEffectiveForce } from './military.js';
+import { resolveWars, resolveAttackOrders, declareWar, degradeUnmaintainedWeapons, calculateEffectiveForce, tickWeaponProduction, tickCombatUnitProduction, tickUnitMaintenance } from './military.js';
+import { tickMining } from './mining.js';
+import { tickAgriculture } from './agriculture.js';
+import { tickLivestock } from './livestock.js';
+import { tickMarine } from './marine.js';
+import { tickManufacturing, tickMaintenanceParts, tickAmmunitionProduction } from './manufacturing.js';
+import { tickTransport, tickVehicleProduction, tickAutoMaintenance } from './transport.js';
 import { collectIncome, calculateMaintenanceCosts } from './production.js';
 import { updatePopulation, updatePollution } from './population.js';
 import { resolveCommerce } from './commerce.js';
 import { generateMarketEvents } from './marketEvents.js';
 import { generateJournalHeadlines } from './journal.js';
 import { calculateScore, calculateGDP, calculateInfluence, buildLeaderboard } from './scoring.js';
-import { collectCotisations } from './organizations.js';
+import { collectCotisations, tickOrgVotes, tickEmbargos } from './organizations.js';
 
 export interface RoundResolutionResult {
   log: ResolutionEntry[];
@@ -35,6 +41,9 @@ export function resolveRound(context: EcoWarGameContext): RoundResolutionResult 
     if (player.submittedActions?.some(a => a.type === 'defend')) {
       defendingPlayerIds.add(playerId);
     }
+
+    // Réinitialiser les troupes épuisées pour le prochain tour d'action
+    player.exhaustedTroopsByRegion = {};
   }
 
   // ─── Step 1: Defenses ───
@@ -46,12 +55,70 @@ export function resolveRound(context: EcoWarGameContext): RoundResolutionResult 
   log.push(...sabotageEntries);
 
   // ─── Step 3: Wars ───
+  // 3a. Ordres d'attaque province-à-province (nouveau système)
+  const attackOrderEntries = resolveAttackOrders(context);
+  log.push(...attackOrderEntries);
+  // 3b. Résolution abstraite des guerres (fallback + gestion armistice/victoire)
   const warEntries = resolveWars(context);
   log.push(...warEntries);
 
   // Process war declarations from this turn's actions
   const warDeclarations = resolveWarDeclarations(context, allActions);
   log.push(...warDeclarations);
+
+  // ─── Step 3.5: Mining (recharge + extraction + pollution) ───
+  const miningEntries = tickMining(context.players);
+  log.push(...miningEntries);
+
+  // ─── Step 3.6: Agriculture (production + fertility evolution) ───
+  const agriEntries = tickAgriculture(context.players);
+  log.push(...agriEntries);
+
+  // ─── Step 3.7: Livestock (production + feed consumption + herd evolution) ───
+  const livestockEntries = tickLivestock(context.players);
+  log.push(...livestockEntries);
+
+  // ─── Step 3.8: Marine (extraction + stock evolution) ───
+  const marineEntries = tickMarine(context.players);
+  log.push(...marineEntries);
+
+  // ─── Step 3.9: Manufacturing (biens produits par les usines) ───
+  const mfgEntries = tickManufacturing(context.players);
+  log.push(...mfgEntries);
+
+  // ─── Step 3.10: Production automatique de véhicules ──────────
+  const vehicleProductionEntries = tickVehicleProduction(context.players);
+  log.push(...vehicleProductionEntries);
+
+  // ─── Step 3.10b: Production automatique d'armes ───────────────
+  const weaponProductionEntries = tickWeaponProduction(context.players);
+  log.push(...weaponProductionEntries);
+
+  // ─── Step 3.10d: Production d'unités de combat (chars, avions, navires) ───
+  const combatUnitEntries = tickCombatUnitProduction(context.players);
+  log.push(...combatUnitEntries);
+
+  // ─── Step 3.10c: Production de pièces d'entretien ─────────────
+  const maintenancePartsEntries = tickMaintenanceParts(context.players);
+  log.push(...maintenancePartsEntries);
+
+  // ─── Step 3.10e: Production de munitions ─────────────────────
+  const ammoEntries = tickAmmunitionProduction(context.players);
+  log.push(...ammoEntries);
+
+  // ─── Step 3.11: Transport (vieillissement + carburant + capacité) ───
+  const transportEntries = tickTransport(context.players);
+  log.push(...transportEntries);
+
+  // ─── Step 3.11b: Auto-maintenance (pièces appliquées aux véhicules/armes vieillissants) ───
+  const playerNames = new Map<string, string>();
+  for (const [id, p] of context.players) playerNames.set(id, p.countryName);
+  const autoMaintenanceEntries = tickAutoMaintenance(context.players, playerNames);
+  log.push(...autoMaintenanceEntries);
+
+  // ─── Step 3.12: Entretien des unités militaires ───────────────
+  const unitMaintenanceEntries = tickUnitMaintenance(context.players);
+  log.push(...unitMaintenanceEntries);
 
   // ─── Step 4: Production ───
   const productionEntries = resolveProduction(context);
@@ -84,9 +151,11 @@ export function resolveRound(context: EcoWarGameContext): RoundResolutionResult 
   // Tick temporary effects
   tickTemporaryEffects(context);
 
-  // Collect org cotisations
+  // Organisations : cotisations + résolution des votes + décrément des embargos
   for (const org of context.organizations) {
-    collectCotisations(org, context.players);
+    collectCotisations(org, context.players, context.currentRound);
+    tickOrgVotes(org, context.players, context.currentRound);
+    tickEmbargos(org);
   }
 
   // Generate journal headlines

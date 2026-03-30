@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import type { Threat, PublicPlayerInfo, PublicThreatInfo } from '@undercover/shared'
+import type { Threat, PublicPlayerInfo, PublicThreatInfo, ThreatDemand } from '@undercover/shared'
+
+function formatDemand(d: ThreatDemand): string {
+  if (d.type === 'money') return `💰 ${d.amount ?? '?'} M€`
+  if (d.type === 'resource') return `📦 ${d.amount ?? '?'}× ${d.resourceType ?? '?'}`
+  if (d.type === 'military_withdrawal') return '🏳️ Retrait militaire'
+  return '🤝 Lever les sanctions'
+}
 
 const INFRA_TARGETS = [
   { id: 'electricity', label: 'Réseau électrique', icon: '⚡' },
@@ -124,7 +131,7 @@ export function ThreatModal({
                           Cible : {INFRA_TARGETS.find(t => t.id === threat.targetInfrastructure)?.icon || '🎯'} {threat.targetInfrastructure}
                         </p>
                         <p className="text-xs text-slate-700 dark:text-slate-300">
-                          Exigence : {threat.demand}
+                          Exigence : {formatDemand(threat.demand)}
                         </p>
                         <p className="text-[10px] text-slate-500">
                           Deadline : manche {threat.deadlineRound}
@@ -163,7 +170,7 @@ export function ThreatModal({
                         Menace contre {threat.targetName}
                       </p>
                       <p className="text-xs text-slate-700 dark:text-slate-300">
-                        Exigence : {threat.demand}
+                        Exigence : {formatDemand(threat.demand)}
                       </p>
                       <p className="text-[10px] text-slate-500">
                         Statut : {threat.status} — Deadline : manche {threat.deadlineRound}

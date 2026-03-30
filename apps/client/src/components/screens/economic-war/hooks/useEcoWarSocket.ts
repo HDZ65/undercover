@@ -7,14 +7,23 @@ import type {
   EcoWarPrivatePlayerState,
   GameConfig,
   PlayerAction,
-  ProductCategory,
+  ResourceType,
+  VehicleTradeItem,
+  MilitaryUnitTradeItem,
   OrganizationType,
   CountryProfile,
   TradeOffer,
+  RegionPurchaseOffer,
   Threat,
   ResolutionEntry,
   GameNotification,
   JournalHeadline,
+  IndustrySector,
+  VehicleType,
+  VehicleTier,
+  WarAllocationSubmission,
+  MilitaryUnits,
+  AttackOrder,
 } from '@undercover/shared';
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
@@ -48,6 +57,7 @@ export function useEcoWarSocket() {
   const [timer, setTimer] = useState<number | null>(null);
   const [countryList, setCountryList] = useState<{ countries: CountryProfile[]; takenIds: string[] } | null>(null);
   const [incomingTrades, setIncomingTrades] = useState<TradeOffer[]>([]);
+  const [incomingRegionPurchases, setIncomingRegionPurchases] = useState<RegionPurchaseOffer[]>([]);
   const [incomingThreats, setIncomingThreats] = useState<Threat[]>([]);
   const [chatMessages, setChatMessages] = useState<Array<{ from: string; fromName: string; channel: string; message: string; timestamp: number }>>([]);
   const [resolutionLog, setResolutionLog] = useState<ResolutionEntry[]>([]);
@@ -153,6 +163,15 @@ export function useEcoWarSocket() {
       setIncomingTrades(prev => prev.filter(t => t.id !== data.tradeId));
     });
 
+    // Region purchase events
+    socket.on('region:purchaseIncoming', (data) => {
+      setIncomingRegionPurchases(prev => [...prev, data.offer]);
+    });
+
+    socket.on('region:purchaseResult', (data) => {
+      setIncomingRegionPurchases(prev => prev.filter(o => o.id !== data.offerId));
+    });
+
     // Threat events
     socket.on('threat:received', (data) => {
       setIncomingThreats(prev => [...prev, data.threat]);
@@ -253,6 +272,62 @@ export function useEcoWarSocket() {
     socketRef.current?.emit('game:submitActions', { actions });
   }, []);
 
+  const submitFreeAction = useCallback((action: PlayerAction) => {
+    socketRef.current?.emit('game:freeAction', { action });
+  }, []);
+
+  const setProductionChoice = useCallback((
+    sector: IndustrySector,
+    opts: {
+      vehicleType?: VehicleType;
+      vehicleTier?: VehicleTier;
+      weaponTier?: 1 | 2 | 3 | 4;
+      partTier?: 1 | 2 | 3 | 4;
+    },
+  ) => {
+    socketRef.current?.emit('game:setProductionChoice', { sector, ...opts });
+  }, []);
+
+  const submitWarAllocation = useCallback((allocation: WarAllocationSubmission) => {
+    socketRef.current?.emit('war:allocate', allocation);
+  }, []);
+
+  const recruitInfantry = useCallback((tier: 1 | 2 | 3, count: number, regionId: string) => {
+    socketRef.current?.emit('war:recruitInfantry', { tier, count, regionId });
+  }, []);
+
+  const trainInfantry = useCallback((regionId: string, fromTier: 1 | 2, count: number) => {
+    socketRef.current?.emit('war:trainInfantry', { regionId, fromTier, count });
+  }, []);
+
+  const upgradeFactory = useCallback((factoryId: string) => {
+    socketRef.current?.emit('factory:upgrade', { factoryId });
+  }, []);
+
+  const togglePauseFactory = useCallback((factoryId: string) => {
+    socketRef.current?.emit('factory:togglePause', { factoryId });
+  }, []);
+
+  const deployTroops = useCallback((regionId: string, units: MilitaryUnits) => {
+    socketRef.current?.emit('war:deployTroops', { regionId, units });
+  }, []);
+
+  const transferTroops = useCallback((fromRegionId: string, toRegionId: string, units: MilitaryUnits) => {
+    socketRef.current?.emit('war:transferTroops', { fromRegionId, toRegionId, units });
+  }, []);
+
+  const attackProvince = useCallback((order: AttackOrder) => {
+    socketRef.current?.emit('war:attackProvince', order);
+  }, []);
+
+  const occupyNeutral = useCallback((fromRegionId: string, toRegionId: string, units?: MilitaryUnits) => {
+    socketRef.current?.emit('war:occupyNeutral', { fromRegionId, toRegionId, units });
+  }, []);
+
+  const fortifyProvince = useCallback((regionId: string) => {
+    socketRef.current?.emit('war:fortifyProvince', { regionId });
+  }, []);
+
   const markReady = useCallback(() => {
     socketRef.current?.emit('game:ready');
   }, []);
@@ -265,14 +340,25 @@ export function useEcoWarSocket() {
 
   const proposeTrade = useCallback((
     targetId: string,
-    offer: { product: ProductCategory; quantity: number }[],
+    offer: { resource: ResourceType; quantity: number }[],
     moneyAmount: number,
+    vehicles?: VehicleTradeItem[],
+    maintenanceParts?: { tier: 1 | 2 | 3 | 4; quantity: number }[],
+    militaryUnits?: MilitaryUnitTradeItem[],
   ) => {
-    socketRef.current?.emit('trade:propose', { targetId, offer, moneyAmount });
+    socketRef.current?.emit('trade:propose', { targetId, offer, moneyAmount, vehicles, maintenanceParts, militaryUnits });
   }, []);
 
   const respondToTrade = useCallback((tradeId: string, accepted: boolean) => {
     socketRef.current?.emit('trade:respond', { tradeId, accepted });
+  }, []);
+
+  const respondToRegionPurchase = useCallback((offerId: string, accepted: boolean) => {
+    socketRef.current?.emit('region:purchaseRespond', { offerId, accepted });
+  }, []);
+
+  const bidOnAuction = useCallback((auctionId: string) => {
+    socketRef.current?.emit('trade:bid', { auctionId });
   }, []);
 
   // ─── Organizations ──────────────────────────────────────────
@@ -317,10 +403,34 @@ export function useEcoWarSocket() {
     socketRef.current?.emit('sanction:lift', { sanctionId });
   }, []);
 
-  // ─── Org Propose Vote ────────────────────────────────────────
+  // ─── Org actions avancées ─────────────────────────────────────
 
-  const proposeOrgVote = useCallback((orgId: string, type: string, description: string) => {
-    socketRef.current?.emit('org:proposeVote', { orgId, type, description });
+  const proposeEmbargo = useCallback((orgId: string, targetId: string, amount: number) => {
+    socketRef.current?.emit('org:proposeEmbargo', { orgId, targetId, amount });
+  }, []);
+
+  const proposeAidRequest = useCallback((orgId: string, motivationText: string) => {
+    socketRef.current?.emit('org:proposeAidRequest', { orgId, motivationText });
+  }, []);
+
+  const castAmountVote = useCallback((orgId: string, voteId: string, amount: number) => {
+    socketRef.current?.emit('org:castAmountVote', { orgId, voteId, amount });
+  }, []);
+
+  const respondToOrgInvite = useCallback((pendingOrgId: string, accepted: boolean) => {
+    socketRef.current?.emit('org:respondInvite', { pendingOrgId, accepted });
+  }, []);
+
+  const requestJoinOrg = useCallback((orgId: string) => {
+    socketRef.current?.emit('org:requestJoin', { orgId });
+  }, []);
+
+  const voteJoinRequest = useCallback((orgId: string, requestId: string, vote: boolean) => {
+    socketRef.current?.emit('org:voteJoinRequest', { orgId, requestId, vote });
+  }, []);
+
+  const proposeExpelMember = useCallback((orgId: string, targetId: string) => {
+    socketRef.current?.emit('org:proposeExpel', { orgId, targetId });
   }, []);
 
   // ─── Chat ────────────────────────────────────────────────────
@@ -344,6 +454,7 @@ export function useEcoWarSocket() {
     timer,
     countryList,
     incomingTrades,
+    incomingRegionPurchases,
     incomingThreats,
     chatMessages,
     resolutionLog,
@@ -364,18 +475,38 @@ export function useEcoWarSocket() {
 
     // Gameplay
     submitActions,
+    submitFreeAction,
+    setProductionChoice,
     markReady,
     abandon,
+    submitWarAllocation,
+    recruitInfantry,
+    trainInfantry,
+    upgradeFactory,
+    togglePauseFactory,
+    deployTroops,
+    transferTroops,
+    attackProvince,
+    occupyNeutral,
+    fortifyProvince,
 
     // Trade
     proposeTrade,
     respondToTrade,
+    bidOnAuction,
+    respondToRegionPurchase,
 
     // Organizations
     createOrganization,
     voteInOrganization,
     leaveOrganization,
-    proposeOrgVote,
+    proposeEmbargo,
+    proposeAidRequest,
+    castAmountVote,
+    respondToOrgInvite,
+    requestJoinOrg,
+    voteJoinRequest,
+    proposeExpelMember,
 
     // Threats
     declareThreat,
