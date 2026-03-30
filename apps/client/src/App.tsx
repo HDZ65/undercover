@@ -17,6 +17,7 @@ import { UnoLobby } from './components/screens/uno'
 import { EcoWarLobby } from './components/screens/economic-war'
 import { CodenamesLobby } from './components/screens/codenames'
 import { TamalouLobby } from './components/screens/tamalou'
+import { MojoLobby } from './components/screens/mojo'
 
 import { ConnectionStatusOverlay } from './components/ui/ConnectionStatusOverlay'
 
@@ -84,6 +85,10 @@ function App() {
 
     if (selectedGame === 'tamalou') {
       return <TamalouLobby onBack={handleBackToMenu} />
+    }
+
+    if (selectedGame === 'mojo') {
+      return <MojoLobby onBack={handleBackToMenu} />
     }
 
     return <GameMenu onSelectGame={setSelectedGame} />

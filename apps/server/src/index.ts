@@ -26,6 +26,11 @@ import type {
   TamalouServerToClientEvents,
 } from '@undercover/shared';
 import { TamalouRoomManager } from './tamalou/roomManager.js';
+import type {
+  MojoClientToServerEvents,
+  MojoServerToClientEvents,
+} from '@undercover/shared';
+import { MojoRoomManager } from './mojo/roomManager.js';
 
 const app = express();
 app.use(cors());
@@ -64,6 +69,8 @@ const codenamesNamespace = io.of('/codenames') as Namespace<CodenamesClientToSer
 const codenamesRoomManager = new CodenamesRoomManager(codenamesNamespace);
 const tamalouNamespace = io.of('/tamalou') as Namespace<TamalouClientToServerEvents, TamalouServerToClientEvents>;
 const tamalouRoomManager = new TamalouRoomManager(tamalouNamespace);
+const mojoNamespace = io.of('/mojo') as Namespace<MojoClientToServerEvents, MojoServerToClientEvents>;
+const mojoRoomManager = new MojoRoomManager(mojoNamespace);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
@@ -451,6 +458,23 @@ tamalouNamespace.on('connection', (socket) => {
   socket.on('game:nextRound', () => tamalouRoomManager.handleNextRound(socket));
   socket.on('game:resetGame', () => tamalouRoomManager.handleResetGame(socket));
   socket.on('disconnect', () => tamalouRoomManager.handleDisconnect(socket));
+});
+
+// ── Mojo namespace ──
+mojoNamespace.on('connection', (socket) => {
+  console.log(`[Mojo] Connected: ${socket.id}`);
+  socket.on('room:create', (data) => mojoRoomManager.createRoom(socket, data.playerName));
+  socket.on('room:join', (data) => mojoRoomManager.joinRoom(socket, data.roomCode, data.playerName, data.playerToken));
+  socket.on('room:leave', () => mojoRoomManager.leaveRoom(socket));
+  socket.on('game:startGame', () => mojoRoomManager.handleStartGame(socket));
+  socket.on('game:setDoubleDiscard', (data) => mojoRoomManager.handleSetDoubleDiscard(socket, data.enabled));
+  socket.on('game:playCard', (data) => mojoRoomManager.handlePlayCard(socket, data.cardId, data.discardIndex ?? 0));
+  socket.on('game:draw', (data) => mojoRoomManager.handleDraw(socket, data.source, data.discardIndex ?? 0));
+  socket.on('game:endTurn', () => mojoRoomManager.handleEndTurn(socket));
+  socket.on('game:revealMojoCard', (data) => mojoRoomManager.handleRevealMojoCard(socket, data.cardId));
+  socket.on('game:nextRound', () => mojoRoomManager.handleNextRound(socket));
+  socket.on('game:resetGame', () => mojoRoomManager.handleResetGame(socket));
+  socket.on('disconnect', () => mojoRoomManager.handleDisconnect(socket));
 });
 
 const PORT = process.env.PORT || 3001;

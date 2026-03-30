@@ -58,6 +58,14 @@ const GAMES: GameOption[] = [
     players: '2-8 joueurs',
     available: true,
   },
+  {
+    id: 'mojo',
+    title: 'Mojo',
+    description: 'Debarrassez-vous de vos cartes et gardez le score le plus bas. Attention au Mojo !',
+    gradient: 'from-fuchsia-500 to-purple-600',
+    players: '2-6 joueurs',
+    available: true,
+  },
 ]
 
 interface GameMenuProps {
