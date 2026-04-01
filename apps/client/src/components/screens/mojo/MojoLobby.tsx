@@ -131,6 +131,7 @@ function Lobby({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPr
 // ── Game ──
 
 function Game({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPrivateState; sock: Sock; onBack: () => void }) {
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null)
   const isMyTurn = pub.currentPlayerId === priv.playerId
   const meInMojo = pub.players.find(p => p.id === priv.playerId)?.inMojoTime ?? false
   const currentName = pub.players.find(p => p.id === pub.currentPlayerId)?.name || ''
@@ -139,6 +140,39 @@ function Game({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPri
   const canDraw = isMyTurn && pub.mustDraw
   const canReveal = isMyTurn && meInMojo && priv.mojoCards.length > 0
   const mustReplay = isMyTurn && pub.equalChainActive
+  const isDouble = pub.doubleDiscard && pub.discardTops.length > 1
+
+  // In equal chain, forced to play on same pile
+  const forcedPileIndex = mustReplay ? pub.activeDiscardIndex : null
+  // When drawing after higher card, can draw from OTHER pile
+  const otherPileIndex = canDraw && isDouble ? (pub.activeDiscardIndex === 0 ? 1 : 0) : null
+
+  // Clear selection when turn changes
+  useEffect(() => { setSelectedCardId(null) }, [pub.currentPlayerId, pub.playedThisTurn])
+
+  const handlePlayOnPile = (dIdx: number) => {
+    if (!canPlay) return
+    if (isDouble) {
+      // Need a selected card first
+      if (selectedCardId === null) return
+      sock.playCard(selectedCardId, dIdx)
+      setSelectedCardId(null)
+    }
+  }
+
+  const handleCardClick = (cardId: number) => {
+    if (!canPlay) return
+    if (!isDouble) {
+      // Single discard: play directly
+      sock.playCard(cardId, 0)
+    } else if (forcedPileIndex !== null) {
+      // Equal chain: play directly on forced pile
+      sock.playCard(cardId, forcedPileIndex)
+    } else {
+      // Double discard: select card, then click pile
+      setSelectedCardId(prev => prev === cardId ? null : cardId)
+    }
+  }
 
   return (
     <motion.div className="w-full max-w-2xl mx-auto" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -153,8 +187,11 @@ function Game({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPri
       <div className="text-center mb-4">
         {isMyTurn ? (
           <p className="text-lg font-bold text-emerald-400">
-            {canDraw && 'Piochez une carte !'}
-            {canPlay && !pub.playedThisTurn && !mustReplay && 'Jouez une carte sur la defausse'}
+            {canDraw && !isDouble && 'Piochez une carte !'}
+            {canDraw && isDouble && 'Piochez depuis la pioche ou l\'autre defausse !'}
+            {canPlay && !pub.playedThisTurn && !mustReplay && !isDouble && 'Jouez une carte sur la defausse'}
+            {canPlay && !pub.playedThisTurn && !mustReplay && isDouble && selectedCardId === null && 'Selectionnez une carte puis choisissez une defausse'}
+            {canPlay && !pub.playedThisTurn && !mustReplay && isDouble && selectedCardId !== null && 'Cliquez sur une defausse pour jouer'}
             {mustReplay && 'Egalite ! Rejouez une carte'}
             {canReveal && 'Revelez une carte Mojo'}
           </p>
@@ -178,24 +215,40 @@ function Game({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPri
         </div>
 
         {/* Discard pile(s) */}
-        {pub.discardTops.map((top, dIdx) => (
-          <div key={dIdx} className="text-center">
-            {top ? (
-              <div className={canDraw && pub.doubleDiscard && dIdx !== (pub.discardTops.length - 1) ? 'cursor-pointer' : ''}>
+        {pub.discardTops.map((top, dIdx) => {
+          // Can click discard to play a card on it?
+          const canPlayHere = canPlay && selectedCardId !== null && isDouble && forcedPileIndex === null
+          // Can draw from this pile? (only the OTHER pile, not the one we played on)
+          const canDrawHere = canDraw && isDouble && otherPileIndex === dIdx && top !== null
+          const isClickable = canPlayHere || canDrawHere
+          const isActivePile = pub.playedThisTurn && dIdx === pub.activeDiscardIndex
+
+          return (
+            <div key={dIdx} className="text-center">
+              {top ? (
                 <CardView
                   card={top}
-                  onClick={canDraw && pub.doubleDiscard ? () => sock.draw('discard', dIdx) : undefined}
-                  highlight={canPlay}
+                  onClick={isClickable ? () => {
+                    if (canDrawHere) sock.draw('discard', dIdx)
+                    else if (canPlayHere) handlePlayOnPile(dIdx)
+                  } : undefined}
+                  highlight={isClickable || (canPlay && !isDouble)}
                 />
-              </div>
-            ) : (
-              <div className="w-14 h-20 rounded-lg border-2 border-dashed border-slate-600 flex items-center justify-center"><span className="text-slate-600 text-xs">Vide</span></div>
-            )}
-            <p className="text-xs text-slate-500 mt-1">Defausse{pub.doubleDiscard ? ` ${dIdx + 1}` : ''}</p>
-          </div>
-        ))}
+              ) : (
+                <div className={`w-14 h-20 rounded-lg border-2 border-dashed ${canPlayHere ? 'border-fuchsia-400 cursor-pointer hover:bg-fuchsia-500/10' : 'border-slate-600'} flex items-center justify-center`}
+                  onClick={() => canPlayHere && handlePlayOnPile(dIdx)}
+                >
+                  <span className="text-slate-600 text-xs">Vide</span>
+                </div>
+              )}
+              <p className={`text-xs mt-1 ${isActivePile ? 'text-fuchsia-400 font-semibold' : 'text-slate-500'}`}>
+                Defausse{isDouble ? ` ${dIdx + 1}` : ''}
+                {canDrawHere && <span className="text-emerald-400 ml-1">(piocher)</span>}
+              </p>
+            </div>
+          )
+        })}
       </div>
-
 
       {/* My hand */}
       {priv.hand.length > 0 && (
@@ -206,14 +259,11 @@ function Game({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPri
               <CardView
                 key={card.id}
                 card={card}
-                highlight={canPlay}
-                onClick={canPlay ? () => sock.playCard(card.id, 0) : undefined}
+                highlight={canPlay && (selectedCardId === card.id || !isDouble || forcedPileIndex !== null)}
+                onClick={canPlay ? () => handleCardClick(card.id) : undefined}
               />
             ))}
           </div>
-          {canPlay && pub.doubleDiscard && pub.discardTops.length > 1 && (
-            <p className="text-xs text-slate-500 text-center mt-1">Cliquez pour jouer sur la defausse 1. Maintenez pour la defausse 2.</p>
-          )}
         </div>
       )}
 

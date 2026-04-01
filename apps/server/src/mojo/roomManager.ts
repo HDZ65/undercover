@@ -155,6 +155,7 @@ export class MojoRoomManager {
       doubleDiscard: ctx.doubleDiscard,
       playedThisTurn: ctx.playedThisTurn, mustDraw: ctx.mustDraw,
       equalChainActive: ctx.lastPlayedValue !== null,
+      activeDiscardIndex: ctx.activeDiscardIndex,
     }
 
     for (const [playerId, roomPlayer] of room.players) {

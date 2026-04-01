@@ -61,6 +61,8 @@ export interface MojoPublicState {
   mustDraw: boolean
   /** Active equal chain — must play another card */
   equalChainActive: boolean
+  /** Which discard pile was used this turn (for equal chain + draw from other) */
+  activeDiscardIndex: number
 }
 
 export interface MojoPrivateState {

@@ -195,7 +195,11 @@ export const mojoMachine = setup({
       const cardIdx = player.hand.findIndex(c => c.id === event.cardId)
       if (cardIdx === -1) return {}
       const card = player.hand[cardIdx]
-      const dIdx = context.doubleDiscard ? event.discardIndex : 0
+
+      // In equal chain → must use same pile. Otherwise player chooses.
+      const dIdx = (context.lastPlayedValue !== null && context.doubleDiscard)
+        ? context.activeDiscardIndex
+        : (context.doubleDiscard ? event.discardIndex : 0)
 
       // Get top of chosen discard
       const top = discardTop(context.discardPiles[dIdx])
