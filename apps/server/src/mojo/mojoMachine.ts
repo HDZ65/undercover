@@ -262,7 +262,7 @@ export const mojoMachine = setup({
     checkMojoTime: assign(({ context }) => {
       // After ending turn, check if current player should enter mojo time
       const player = currentPlayer(context)
-      const threshold = context.players.length === 2 ? 2 : 3
+      const threshold = 3
       if (!player.inMojoTime && player.hand.length <= threshold && player.hand.length > 0) {
         const newPlayers = context.players.map(p => {
           if (p.id !== player.id) return p
