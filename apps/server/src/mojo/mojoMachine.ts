@@ -466,10 +466,10 @@ export const mojoMachine = setup({
       ],
     },
     endTurn: {
-      entry: 'checkMojoTime',
       always: [
         {
           target: 'checkRoundEnd',
+          actions: 'checkMojoTime',
         },
       ],
     },
