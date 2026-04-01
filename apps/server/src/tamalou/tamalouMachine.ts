@@ -60,6 +60,7 @@ export type TamalouMachineEvent =
   | { type: 'ACK_PEEK' }
   | { type: 'CALL_TAMALOU' }
   | { type: 'NEXT_ROUND' }
+  | { type: 'END_PEEK_REVEAL' }
   | { type: 'RESET_GAME' }
 
 // ── Helpers ──
@@ -414,10 +415,18 @@ export const tamalouMachine = setup({
       always: [
         {
           guard: 'allPeeked',
+          target: 'peekReveal',
+        },
+      ],
+    },
+    peekReveal: {
+      // All players peeked — cards stay visible for 7s, then server sends END_PEEK_REVEAL
+      on: {
+        END_PEEK_REVEAL: {
           target: 'playerTurn',
           actions: 'clearInitialPeek',
         },
-      ],
+      },
     },
     playerTurn: {
       on: {
@@ -426,17 +435,9 @@ export const tamalouMachine = setup({
           actions: 'drawCard',
         },
         CALL_TAMALOU: {
-          actions: 'callTamalou',
-          target: 'playerTurnAfterTamalou',
-        },
-      },
-    },
-    playerTurnAfterTamalou: {
-      // After calling Tamalou, player still needs to draw and play their turn
-      on: {
-        DRAW: {
-          target: 'drawnCard',
-          actions: 'drawCard',
+          // Tamalou ends this player's turn immediately, others get one last turn
+          actions: ['callTamalou', 'advanceTurn'],
+          target: 'playerTurn',
         },
       },
     },

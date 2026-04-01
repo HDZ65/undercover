@@ -25,6 +25,7 @@ interface Room {
   players: Map<string, RoomPlayer>
   hostId: string
   disconnectTimers: Map<string, ReturnType<typeof setTimeout>>
+  peekRevealTimer: ReturnType<typeof setTimeout> | null
 }
 
 const DISCONNECT_GRACE_MS = 90_000
@@ -63,6 +64,7 @@ export class TamalouRoomManager {
       players: new Map(),
       hostId: playerId,
       disconnectTimers: new Map(),
+      peekRevealTimer: null,
     }
 
     room.players.set(playerId, { id: playerId, name: playerName, socketId: socket.id, playerToken })
@@ -70,7 +72,18 @@ export class TamalouRoomManager {
     this.socketPresence.set(socket.id, { roomCode: code, playerId })
     socket.join(code)
 
-    actor.subscribe(() => this.broadcastState(room))
+    actor.subscribe(() => {
+      this.broadcastState(room)
+      // When entering peekReveal, start 7s timer then auto-transition
+      const snapshot = actor.getSnapshot()
+      const phase = String(snapshot.value)
+      if (phase === 'peekReveal' && !room.peekRevealTimer) {
+        room.peekRevealTimer = setTimeout(() => {
+          room.peekRevealTimer = null
+          actor.send({ type: 'END_PEEK_REVEAL' })
+        }, 7000)
+      }
+    })
     actor.start()
     actor.send({ type: 'ADD_PLAYER', id: playerId, name: playerName })
 
@@ -324,7 +337,7 @@ export class TamalouRoomManager {
   private resolvePhase(value: unknown): TamalouPublicState['phase'] {
     if (typeof value === 'string') {
       // playerTurnAfterTamalou is displayed as playerTurn to the client
-      if (value === 'playerTurnAfterTamalou') return 'playerTurn'
+      if (value === 'peekReveal') return 'initialPeek'
       return value as TamalouPublicState['phase']
     }
     return 'lobby'

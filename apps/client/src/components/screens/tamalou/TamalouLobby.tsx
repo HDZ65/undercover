@@ -196,9 +196,23 @@ function LobbyPhase({ pub, priv, sock, onBack }: { pub: TamalouPublicState; priv
 
 // ── Initial Peek ──
 
-function InitialPeekPhase({ priv, sock, onBack }: { pub: TamalouPublicState; priv: TamalouPrivateState; sock: Sock; onBack: () => void }) {
+function InitialPeekPhase({ pub, priv, sock, onBack }: { pub: TamalouPublicState; priv: TamalouPrivateState; sock: Sock; onBack: () => void }) {
   const [selected, setSelected] = useState<number[]>([])
+  const [countdown, setCountdown] = useState<number | null>(null)
   const hasPeeked = priv.hand.some(c => c !== null)
+
+  // All players peeked = all hands have visible cards = peekReveal phase
+  const allPeeked = hasPeeked && pub.players.every(p => p.cardCount === 4)
+
+  // Start countdown when all have peeked (peekReveal phase)
+  useEffect(() => {
+    if (!allPeeked) return
+    setCountdown(7)
+    const interval = setInterval(() => {
+      setCountdown(prev => prev !== null && prev > 0 ? prev - 1 : 0)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [allPeeked])
 
   const toggle = (idx: number) => {
     if (hasPeeked) return
@@ -219,10 +233,10 @@ function InitialPeekPhase({ priv, sock, onBack }: { pub: TamalouPublicState; pri
       </button>
 
       <h2 className="text-xl font-bold text-amber-400 mb-2">
-        {hasPeeked ? 'Memorisez vos cartes...' : 'Choisissez 2 cartes a regarder'}
+        {allPeeked ? `Memorisez vos cartes ! (${countdown ?? 0}s)` : hasPeeked ? 'Memorisez vos cartes...' : 'Choisissez 2 cartes a regarder'}
       </h2>
       <p className="text-sm text-slate-400 mb-6">
-        {hasPeeked ? 'En attente des autres joueurs' : 'Selectionnez 2 de vos 4 cartes'}
+        {allPeeked ? 'Les cartes vont se retourner...' : hasPeeked ? 'En attente des autres joueurs' : 'Selectionnez 2 de vos 4 cartes'}
       </p>
 
       <div className="flex justify-center gap-3 mb-6">
