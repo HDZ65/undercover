@@ -20,6 +20,7 @@ import { TamalouLobby } from './components/screens/tamalou'
 import { MojoLobby } from './components/screens/mojo'
 
 import { ConnectionStatusOverlay } from './components/ui/ConnectionStatusOverlay'
+import { useKeepAlive } from './hooks/useKeepAlive'
 
 export const SocketContext = createContext<UseSocketReturn | null>(null)
 
@@ -27,6 +28,9 @@ function App() {
   useTheme()
   const socket = useSocket()
   const [selectedGame, setSelectedGame] = useState<string | null>(null)
+
+  // Ping server every 2 min while in a game to prevent Render free tier sleep
+  useKeepAlive(selectedGame !== null)
 
   const handleBackToMenu = () => {
     if (socket.roomCode) {
