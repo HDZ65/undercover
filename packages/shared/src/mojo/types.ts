@@ -59,6 +59,8 @@ export interface MojoPublicState {
   playedThisTurn: boolean
   /** Must draw before ending turn (played a higher card) */
   mustDraw: boolean
+  /** Active equal chain — must play another card */
+  equalChainActive: boolean
 }
 
 export interface MojoPrivateState {

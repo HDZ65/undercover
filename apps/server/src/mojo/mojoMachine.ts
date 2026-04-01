@@ -200,15 +200,10 @@ export const mojoMachine = setup({
       // Get top of chosen discard
       const top = discardTop(context.discardPiles[dIdx])
 
-      // If already played this turn, must match the equal-chain value
-      if (context.playedThisTurn && context.lastPlayedValue !== null && card.value !== context.lastPlayedValue) {
-        return {} // Invalid: can't play different value in chain
-      }
-
-      // Determine outcome
+      // Determine outcome against current discard top
       const isEqual = top !== null && card.value === top.value
       const isHigher = top !== null && card.value > top.value
-      // isLower = neither equal nor higher (or no top)
+      // isLower = not equal and not higher
 
       // Remove card from hand
       const newHand = [...player.hand]
@@ -228,8 +223,10 @@ export const mojoMachine = setup({
         players: newPlayers,
         discardPiles: newDiscards,
         playedThisTurn: true,
+        // Higher → must draw then turn ends. Equal → must replay.
         mustDraw: isHigher && !isEqual,
         activeDiscardIndex: dIdx,
+        // Equal → chain active (must play again). Otherwise chain is over.
         lastPlayedValue: isEqual ? card.value : null,
         emptiedHandThisTurn,
       }
@@ -429,9 +426,12 @@ export const mojoMachine = setup({
         DRAW: {
           guard: 'mustDrawFirst',
           actions: 'drawCard',
+          // After drawing (higher card penalty), turn ends automatically
+          target: 'endTurn',
         },
         END_TURN: {
-          guard: ({ context }) => context.playedThisTurn && !context.mustDraw,
+          // Can only end turn if: played a card, not forced to draw, and no active equal chain
+          guard: ({ context }) => context.playedThisTurn && !context.mustDraw && context.lastPlayedValue === null,
           target: 'endTurn',
         },
         REVEAL_MOJO_CARD: {
@@ -450,18 +450,18 @@ export const mojoMachine = setup({
           actions: ['assignMojoWinner', 'computeRoundScores'],
         },
         {
-          // Equal card → stay in playing (player can chain or end turn)
+          // Equal card → must play again (stay in playing, chain active)
           guard: ({ context }) => context.lastPlayedValue !== null,
           target: 'playing',
         },
         {
-          // Higher card → must draw, then end turn
+          // Higher card → must draw (stay in playing, DRAW will auto-end turn)
           guard: ({ context }) => context.mustDraw,
           target: 'playing',
         },
         {
-          // Lower card → can end turn
-          target: 'playing',
+          // Lower card → turn ends automatically
+          target: 'endTurn',
         },
       ],
     },

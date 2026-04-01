@@ -134,8 +134,8 @@ function Game({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPri
 
   const canPlay = isMyTurn && !meInMojo && !pub.mustDraw
   const canDraw = isMyTurn && pub.mustDraw
-  const canEnd = isMyTurn && pub.playedThisTurn && !pub.mustDraw && !meInMojo
   const canReveal = isMyTurn && meInMojo && priv.mojoCards.length > 0
+  const mustReplay = isMyTurn && pub.equalChainActive
 
   return (
     <motion.div className="w-full max-w-2xl mx-auto" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -151,9 +151,8 @@ function Game({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPri
         {isMyTurn ? (
           <p className="text-lg font-bold text-emerald-400">
             {canDraw && 'Piochez une carte !'}
-            {canPlay && !pub.playedThisTurn && 'Jouez une carte sur la defausse'}
-            {canPlay && pub.playedThisTurn && 'Rejouez ou terminez votre tour'}
-            {canEnd && !canPlay && 'Terminez votre tour'}
+            {canPlay && !pub.playedThisTurn && !mustReplay && 'Jouez une carte sur la defausse'}
+            {mustReplay && 'Egalite ! Rejouez une carte'}
             {canReveal && 'Revelez une carte Mojo'}
           </p>
         ) : (
@@ -194,12 +193,6 @@ function Game({ pub, priv, sock, onBack }: { pub: MojoPublicState; priv: MojoPri
         ))}
       </div>
 
-      {/* End turn button */}
-      {canEnd && (
-        <div className="text-center mb-4">
-          <button onClick={() => sock.endTurn()} className="px-6 py-2.5 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 transition-colors">Terminer mon tour</button>
-        </div>
-      )}
 
       {/* My hand */}
       {priv.hand.length > 0 && (
