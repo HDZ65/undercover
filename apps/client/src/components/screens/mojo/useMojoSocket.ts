@@ -42,21 +42,20 @@ export function useMojoSocket() {
     return () => { socket.disconnect(); socketRef.current = null }
   }, [])
 
-  const e = socketRef.current
-  const createRoom = useCallback((name: string) => { localStorage.setItem(SK.playerName, name); e?.emit('room:create', { playerName: name }) }, [e])
-  const joinRoom = useCallback((code: string, name: string) => { localStorage.setItem(SK.playerName, name); e?.emit('room:join', { roomCode: code, playerName: name }) }, [e])
-  const leaveRoom = useCallback(() => { e?.emit('room:leave'); setRoomCode(null); setPublicState(null); setPrivateState(null); localStorage.removeItem(SK.roomCode); localStorage.removeItem(SK.playerToken); localStorage.removeItem(SK.playerId) }, [e])
+  const createRoom = useCallback((name: string) => { localStorage.setItem(SK.playerName, name); socketRef.current?.emit('room:create', { playerName: name }) }, [])
+  const joinRoom = useCallback((code: string, name: string) => { localStorage.setItem(SK.playerName, name); socketRef.current?.emit('room:join', { roomCode: code, playerName: name }) }, [])
+  const leaveRoom = useCallback(() => { socketRef.current?.emit('room:leave'); setRoomCode(null); setPublicState(null); setPrivateState(null); localStorage.removeItem(SK.roomCode); localStorage.removeItem(SK.playerToken); localStorage.removeItem(SK.playerId) }, [])
 
   return {
     connected, publicState, privateState, error, roomCode,
     createRoom, joinRoom, leaveRoom,
-    startGame: useCallback(() => e?.emit('game:startGame'), [e]),
-    setDoubleDiscard: useCallback((v: boolean) => e?.emit('game:setDoubleDiscard', { enabled: v }), [e]),
-    playCard: useCallback((cardId: number, discardIndex?: number) => e?.emit('game:playCard', { cardId, discardIndex }), [e]),
-    draw: useCallback((source: 'pile' | 'discard', discardIndex?: number) => e?.emit('game:draw', { source, discardIndex }), [e]),
-    endTurn: useCallback(() => e?.emit('game:endTurn'), [e]),
-    revealMojoCard: useCallback((cardId: number) => e?.emit('game:revealMojoCard', { cardId }), [e]),
-    nextRound: useCallback(() => e?.emit('game:nextRound'), [e]),
-    resetGame: useCallback(() => e?.emit('game:resetGame'), [e]),
+    startGame: useCallback(() => socketRef.current?.emit('game:startGame'), []),
+    setDoubleDiscard: useCallback((v: boolean) => socketRef.current?.emit('game:setDoubleDiscard', { enabled: v }), []),
+    playCard: useCallback((cardId: number, discardIndex?: number) => socketRef.current?.emit('game:playCard', { cardId, discardIndex }), []),
+    draw: useCallback((source: 'pile' | 'discard', discardIndex?: number) => socketRef.current?.emit('game:draw', { source, discardIndex }), []),
+    endTurn: useCallback(() => socketRef.current?.emit('game:endTurn'), []),
+    revealMojoCard: useCallback((cardId: number) => socketRef.current?.emit('game:revealMojoCard', { cardId }), []),
+    nextRound: useCallback(() => socketRef.current?.emit('game:nextRound'), []),
+    resetGame: useCallback(() => socketRef.current?.emit('game:resetGame'), []),
   }
 }

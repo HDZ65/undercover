@@ -68,42 +68,40 @@ export function useTamalouSocket() {
     return () => { socket.disconnect(); socketRef.current = null }
   }, [])
 
-  const emit = socketRef.current
-
   const createRoom = useCallback((name: string) => {
     localStorage.setItem(STORAGE_KEYS.playerName, name)
-    emit?.emit('room:create', { playerName: name })
-  }, [emit])
+    socketRef.current?.emit('room:create', { playerName: name })
+  }, [])
 
   const joinRoom = useCallback((code: string, name: string) => {
     localStorage.setItem(STORAGE_KEYS.playerName, name)
-    emit?.emit('room:join', { roomCode: code, playerName: name })
-  }, [emit])
+    socketRef.current?.emit('room:join', { roomCode: code, playerName: name })
+  }, [])
 
   const leaveRoom = useCallback(() => {
-    emit?.emit('room:leave')
+    socketRef.current?.emit('room:leave')
     setRoomCode(null); setPublicState(null); setPrivateState(null)
     localStorage.removeItem(STORAGE_KEYS.roomCode)
     localStorage.removeItem(STORAGE_KEYS.playerToken)
     localStorage.removeItem(STORAGE_KEYS.playerId)
-  }, [emit])
+  }, [])
 
   return {
     connected, publicState, privateState, error, roomCode,
     createRoom, joinRoom, leaveRoom,
-    startGame: useCallback(() => emit?.emit('game:startGame'), [emit]),
-    setMaxScore: useCallback((s: number) => emit?.emit('game:setMaxScore', { maxScore: s }), [emit]),
-    peekInitial: useCallback((indices: [number, number]) => emit?.emit('game:peekInitial', { cardIndices: indices }), [emit]),
-    draw: useCallback((source: 'pile' | 'discard') => emit?.emit('game:draw', { source }), [emit]),
-    swapWithOwn: useCallback((idx: number) => emit?.emit('game:swapWithOwn', { cardIndex: idx }), [emit]),
-    discardDrawn: useCallback(() => emit?.emit('game:discardDrawn'), [emit]),
-    peekOwn: useCallback((idx: number) => emit?.emit('game:peekOwn', { cardIndex: idx }), [emit]),
-    peekOpponent: useCallback((pid: string, idx: number) => emit?.emit('game:peekOpponent', { targetPlayerId: pid, cardIndex: idx }), [emit]),
-    blindSwap: useCallback((own: number, pid: string, target: number) => emit?.emit('game:blindSwap', { ownCardIndex: own, targetPlayerId: pid, targetCardIndex: target }), [emit]),
-    skipPower: useCallback(() => emit?.emit('game:skipPower'), [emit]),
-    ackPeek: useCallback(() => emit?.emit('game:ackPeek'), [emit]),
-    callTamalou: useCallback(() => emit?.emit('game:callTamalou'), [emit]),
-    nextRound: useCallback(() => emit?.emit('game:nextRound'), [emit]),
-    resetGame: useCallback(() => emit?.emit('game:resetGame'), [emit]),
+    startGame: useCallback(() => socketRef.current?.emit('game:startGame'), []),
+    setMaxScore: useCallback((s: number) => socketRef.current?.emit('game:setMaxScore', { maxScore: s }), []),
+    peekInitial: useCallback((indices: [number, number]) => socketRef.current?.emit('game:peekInitial', { cardIndices: indices }), []),
+    draw: useCallback((source: 'pile' | 'discard') => socketRef.current?.emit('game:draw', { source }), []),
+    swapWithOwn: useCallback((idx: number) => socketRef.current?.emit('game:swapWithOwn', { cardIndex: idx }), []),
+    discardDrawn: useCallback(() => socketRef.current?.emit('game:discardDrawn'), []),
+    peekOwn: useCallback((idx: number) => socketRef.current?.emit('game:peekOwn', { cardIndex: idx }), []),
+    peekOpponent: useCallback((pid: string, idx: number) => socketRef.current?.emit('game:peekOpponent', { targetPlayerId: pid, cardIndex: idx }), []),
+    blindSwap: useCallback((own: number, pid: string, target: number) => socketRef.current?.emit('game:blindSwap', { ownCardIndex: own, targetPlayerId: pid, targetCardIndex: target }), []),
+    skipPower: useCallback(() => socketRef.current?.emit('game:skipPower'), []),
+    ackPeek: useCallback(() => socketRef.current?.emit('game:ackPeek'), []),
+    callTamalou: useCallback(() => socketRef.current?.emit('game:callTamalou'), []),
+    nextRound: useCallback(() => socketRef.current?.emit('game:nextRound'), []),
+    resetGame: useCallback(() => socketRef.current?.emit('game:resetGame'), []),
   }
 }
