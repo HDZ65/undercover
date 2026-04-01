@@ -279,6 +279,13 @@ export const tamalouMachine = setup({
       peekedCard: () => null,
       powerTargetPlayerId: () => null,
     }),
+    clearInitialPeek: assign(({ context }) => {
+      const newKnown: Record<string, Set<number>> = {}
+      for (const p of context.players) {
+        newKnown[p.id] = new Set()
+      }
+      return { knownPositions: newKnown }
+    }),
     advanceTurn: assign(({ context }) => {
       const next = nextPlayerIndex(context)
       const remaining = context.tamalouCaller !== null
@@ -408,6 +415,7 @@ export const tamalouMachine = setup({
         {
           guard: 'allPeeked',
           target: 'playerTurn',
+          actions: 'clearInitialPeek',
         },
       ],
     },
@@ -419,34 +427,28 @@ export const tamalouMachine = setup({
         },
         CALL_TAMALOU: {
           actions: 'callTamalou',
-          target: 'drawnCard.drawPhase',
+          target: 'playerTurnAfterTamalou',
+        },
+      },
+    },
+    playerTurnAfterTamalou: {
+      // After calling Tamalou, player still needs to draw and play their turn
+      on: {
+        DRAW: {
+          target: 'drawnCard',
+          actions: 'drawCard',
         },
       },
     },
     drawnCard: {
-      initial: 'drawPhase',
-      states: {
-        drawPhase: {
-          on: {
-            DRAW: {
-              target: 'actionPhase',
-              actions: 'drawCard',
-            },
-          },
+      on: {
+        SWAP_WITH_OWN: {
+          target: 'afterAction',
+          actions: 'swapWithOwn',
         },
-        actionPhase: {
-          on: {
-            SWAP_WITH_OWN: {
-              target: '#tamalou.afterAction',
-              actions: 'swapWithOwn',
-            },
-            DISCARD_DRAWN: [
-              {
-                target: '#tamalou.afterAction',
-                actions: ['discardDrawn'],
-              },
-            ],
-          },
+        DISCARD_DRAWN: {
+          target: 'afterAction',
+          actions: 'discardDrawn',
         },
       },
     },

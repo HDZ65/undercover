@@ -322,10 +322,10 @@ export class TamalouRoomManager {
   }
 
   private resolvePhase(value: unknown): TamalouPublicState['phase'] {
-    if (typeof value === 'string') return value as TamalouPublicState['phase']
-    if (typeof value === 'object' && value !== null) {
-      // Compound states like { drawnCard: 'drawPhase' }
-      if ('drawnCard' in value) return 'drawnCard'
+    if (typeof value === 'string') {
+      // playerTurnAfterTamalou is displayed as playerTurn to the client
+      if (value === 'playerTurnAfterTamalou') return 'playerTurn'
+      return value as TamalouPublicState['phase']
     }
     return 'lobby'
   }
