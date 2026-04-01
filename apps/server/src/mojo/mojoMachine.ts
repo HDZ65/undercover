@@ -240,8 +240,9 @@ export const mojoMachine = setup({
       const player = currentPlayer(context)
 
       if (event.source === 'discard' && context.doubleDiscard) {
-        // In double discard: draw top of the OTHER discard pile
-        const otherIdx = event.discardIndex
+        // In double discard: can only draw from the pile we did NOT play on
+        const otherIdx = context.activeDiscardIndex === 0 ? 1 : 0
+        if (event.discardIndex !== otherIdx) return {} // reject drawing from the pile we played on
         const otherPile = [...context.discardPiles[otherIdx]]
         if (otherPile.length === 0) return {}
         const card = otherPile.pop()!
