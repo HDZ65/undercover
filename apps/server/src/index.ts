@@ -50,9 +50,8 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     origin: ALLOWED_ORIGINS,
     methods: ['GET', 'POST'],
   },
-  // Tuned for Render free tier (sleeps after 15 min inactivity)
-  pingInterval: 20_000,
-  pingTimeout: 10_000,
+  pingInterval: 10_000,
+  pingTimeout: 5_000,
   connectionStateRecovery: {
     maxDisconnectionDuration: 2 * 60_000,
     skipMiddlewares: true,
@@ -488,4 +487,15 @@ process.on('unhandledRejection', (reason) => {
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`[Server] Undercover game server running on port ${PORT}`);
+
+  // Self-ping via external URL to prevent Render free tier from sleeping.
+  // Set RENDER_EXTERNAL_URL in Render dashboard (e.g. https://undercover-server.onrender.com)
+  const externalUrl = process.env.RENDER_EXTERNAL_URL;
+  if (externalUrl) {
+    const KEEPALIVE_MS = 5 * 60_000; // every 5 min
+    console.log(`[Server] Keepalive enabled: pinging ${externalUrl}/health every 5 min`);
+    setInterval(() => {
+      fetch(`${externalUrl}/health`).catch(() => {});
+    }, KEEPALIVE_MS);
+  }
 });

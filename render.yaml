@@ -11,3 +11,5 @@ services:
         value: production
       - key: CLIENT_URL
         sync: false
+      - key: RENDER_EXTERNAL_URL
+        sync: false
