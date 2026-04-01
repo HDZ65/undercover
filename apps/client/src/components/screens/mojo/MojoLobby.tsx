@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useMojoSocket } from './useMojoSocket'
 import { MojoRulesModal } from './MojoRulesModal'
+import { useConnectionStatus } from '../../../hooks/useConnectionStatus'
 import type { MojoCard, MojoPublicState, MojoPrivateState, MojoColor } from '@undercover/shared'
 
 interface MojoLobbyProps { onBack: () => void }
@@ -37,6 +38,8 @@ function CardBackView({ onClick, small, label }: { onClick?: () => void; small?:
 export function MojoLobby({ onBack }: MojoLobbyProps) {
   const sock = useMojoSocket()
   const [showRules, setShowRules] = useState(false)
+  const { setConnected } = useConnectionStatus()
+  useEffect(() => { setConnected(sock.connected) }, [sock.connected, setConnected])
 
   const handleBack = () => { sock.leaveRoom(); onBack() }
   const rulesBtn = (

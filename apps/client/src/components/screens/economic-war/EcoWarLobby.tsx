@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useEcoWarSocket } from './hooks/useEcoWarSocket'
+import { useConnectionStatus } from '../../../hooks/useConnectionStatus'
 import type { GameConfig, CountryProfile } from '@undercover/shared'
 import { ResourcePanel } from './components/ResourcePanel'
 import { Leaderboard } from './components/Leaderboard'
@@ -28,6 +29,8 @@ interface EcoWarLobbyProps {
 export function EcoWarLobby({ onBack }: EcoWarLobbyProps) {
   const game = useEcoWarSocket()
   const pub = game.publicState
+  const { setConnected } = useConnectionStatus()
+  useEffect(() => { setConnected(game.connectionInfo.connected) }, [game.connectionInfo.connected, setConnected])
   // Lifted here so they survive phase transitions (DiplomacyBar would remount otherwise)
   const [lastReadChatTs, setLastReadChatTs] = useState(() => Date.now())
   const [seenOrgItemIds, setSeenOrgItemIds] = useState<Set<string>>(new Set())

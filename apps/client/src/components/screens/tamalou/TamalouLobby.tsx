@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useTamalouSocket } from './useTamalouSocket'
 import { RulesModal } from './RulesModal'
+import { useConnectionStatus } from '../../../hooks/useConnectionStatus'
 import type {
   TamalouCard,
   TamalouPublicState,
@@ -15,6 +16,8 @@ interface TamalouLobbyProps {
 export function TamalouLobby({ onBack }: TamalouLobbyProps) {
   const sock = useTamalouSocket()
   const [showRules, setShowRules] = useState(false)
+  const { setConnected } = useConnectionStatus()
+  useEffect(() => { setConnected(sock.connected) }, [sock.connected, setConnected])
 
   const handleBack = () => { sock.leaveRoom(); onBack() }
 

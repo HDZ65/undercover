@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import { useCodenamesSocket } from './useCodenamesSocket'
+import { useConnectionStatus } from '../../../hooks/useConnectionStatus'
 import type { CodenamesTeam, CodenamesPublicCard } from '@undercover/shared'
 
 interface CodenamesLobbyProps {
@@ -25,6 +26,9 @@ export function CodenamesLobby({ onBack }: CodenamesLobbyProps) {
     passTurn,
     resetGame,
   } = useCodenamesSocket()
+
+  const { setConnected } = useConnectionStatus()
+  useEffect(() => { setConnected(connected) }, [connected, setConnected])
 
   const handleBack = () => {
     leaveRoom()

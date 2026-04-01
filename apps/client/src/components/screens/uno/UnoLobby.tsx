@@ -6,6 +6,7 @@ import { UnoCard } from './UnoCard'
 import { UnoAnimationOverlay } from './UnoAnimationOverlay'
 import { UnoParticles } from './UnoParticles'
 import { useUnoSocket } from './hooks/useUnoSocket'
+import { useConnectionStatus } from '../../../hooks/useConnectionStatus'
 
 type LandingMode = 'create' | 'join'
 
@@ -123,6 +124,9 @@ export function UnoLobby({ onBack }: UnoLobbyProps) {
   const [selectedCardIds, setSelectedCardIds] = useState<Set<string>>(new Set())
 
   // Clear selection when turn changes or phase changes
+  const { setConnected: setGlobalConnected } = useConnectionStatus()
+  useEffect(() => { setGlobalConnected(connected) }, [connected, setGlobalConnected])
+
   useEffect(() => {
     setSelectedCardIds(new Set())
   }, [publicState?.currentPlayerId, phase])

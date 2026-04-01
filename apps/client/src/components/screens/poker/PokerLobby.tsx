@@ -4,6 +4,7 @@ import { io, type Socket } from 'socket.io-client'
 import type { ClientToServerEvents, ServerToClientEvents } from '@undercover/shared'
 import { PokerTable } from './PokerTable'
 import { usePokerSocket } from './hooks/usePokerSocket'
+import { useConnectionStatus } from '../../../hooks/useConnectionStatus'
 
 interface PokerLobbyProps {
   onBack?: () => void
@@ -34,6 +35,16 @@ export function PokerLobby({ onBack }: PokerLobbyProps) {
   })
 
   const poker = usePokerSocket(socket)
+  const { setConnected } = useConnectionStatus()
+  useEffect(() => {
+    if (!socket) { setConnected(false); return }
+    const onConnect = () => setConnected(true)
+    const onDisconnect = () => setConnected(false)
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+    setConnected(socket.connected)
+    return () => { socket.off('connect', onConnect); socket.off('disconnect', onDisconnect) }
+  }, [socket, setConnected])
 
   useEffect(() => {
     const nextSocket: PokerSocket = io(SERVER_URL, {
