@@ -31,8 +31,9 @@ export function useTamalouSocket() {
     const socket: TamalouSocket = io(`${SERVER_URL}/tamalou`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     })
     socketRef.current = socket
 

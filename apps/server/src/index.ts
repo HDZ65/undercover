@@ -477,15 +477,15 @@ mojoNamespace.on('connection', (socket) => {
   socket.on('disconnect', () => mojoRoomManager.handleDisconnect(socket));
 });
 
+// ── Global error handlers — prevent silent crashes ──
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled rejection:', reason);
+});
+
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
   console.log(`[Server] Undercover game server running on port ${PORT}`);
-  // Self-ping keepalive: prevent Render free tier from sleeping while the process is up.
-  // This pings our own /health endpoint every 10 minutes.
-  const KEEPALIVE_INTERVAL_MS = 10 * 60_000;
-  setInterval(() => {
-    fetch(`http://localhost:${PORT}/health`).catch(() => {
-      // Swallow errors — this is best-effort
-    });
-  }, KEEPALIVE_INTERVAL_MS);
 });

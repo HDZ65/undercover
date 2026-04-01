@@ -68,8 +68,12 @@ export function useEcoWarSocket() {
 
   useEffect(() => {
     const socket: EcoWarSocket = io(`${SERVER_URL}/economic-war`, {
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
 
     socketRef.current = socket;
@@ -92,6 +96,11 @@ export function useEcoWarSocket() {
     });
 
     socket.on('disconnect', () => {
+      setConnectionInfo(prev => ({ ...prev, connected: false }));
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('[EcoWar] Connection error:', err.message);
       setConnectionInfo(prev => ({ ...prev, connected: false }));
     });
 

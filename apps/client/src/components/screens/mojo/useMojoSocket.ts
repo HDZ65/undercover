@@ -27,7 +27,7 @@ export function useMojoSocket() {
 
   useEffect(() => {
     const socket: MojoSocket = io(`${SERVER_URL}/mojo`, {
-      transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 10, reconnectionDelay: 1000,
+      transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: Infinity, reconnectionDelay: 1000, reconnectionDelayMax: 5000,
     })
     socketRef.current = socket
     socket.on('connect', () => {

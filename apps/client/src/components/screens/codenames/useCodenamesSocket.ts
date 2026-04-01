@@ -34,8 +34,9 @@ export function useCodenamesSocket() {
     const socket: CodenamesSocket = io(`${SERVER_URL}/codenames`, {
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionAttempts: 10,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     })
     socketRef.current = socket
 
