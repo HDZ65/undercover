@@ -310,7 +310,9 @@ export class TamalouRoomManager {
       const playerSocket = this.io.sockets?.get(roomPlayer.socketId)
       if (!playerSocket) continue
 
-      const known = ctx.knownPositions[playerId] || new Set()
+      const knownRaw = ctx.knownPositions[playerId]
+      // Ensure we have a working Set (XState context may lose Set prototype)
+      const known: Set<number> = knownRaw instanceof Set ? knownRaw : new Set(Array.isArray(knownRaw) ? knownRaw : [])
       const hand: (TamalouCard | null)[] = (ctx.hands[playerId] || []).map(
         (card: TamalouCard, idx: number) => known.has(idx) ? card : null,
       )

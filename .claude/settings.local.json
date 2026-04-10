@@ -6,7 +6,11 @@
       "Bash(npx tsc --version)",
       "Bash(ls node_modules/.bin/tsc*)",
       "Bash(node_modules/.bin/tsc --version)",
-      "Bash(npm ls typescript)"
+      "Bash(npm ls typescript)",
+      "Bash(npx kill-port:*)",
+      "Bash(lsof -ti:3001)",
+      "Bash(xargs kill:*)",
+      "Bash(xargs grep:*)"
     ]
   }
 }

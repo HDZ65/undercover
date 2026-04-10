@@ -12,6 +12,7 @@ const CATEGORIES: { value: WordCategory; label: string }[] = [
   { value: 'adulte', label: 'Adulte' },
   { value: 'gastronomie', label: 'Gastronomie' },
   { value: 'voyage', label: 'Voyage' },
+  { value: 'anime', label: 'Anime' },
 ]
 
 const generateAvatar = (name: string): string =>

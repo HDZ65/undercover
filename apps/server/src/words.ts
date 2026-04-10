@@ -4,7 +4,7 @@ import type { WordPair } from '@undercover/shared';
  * Word database for Undercover game
  * 175 French word pairs across 5 categories (35 per category)
  */
-export type RealWordCategory = 'facile' | 'expert' | 'adulte' | 'gastronomie' | 'voyage';
+export type RealWordCategory = 'facile' | 'expert' | 'adulte' | 'gastronomie' | 'voyage' | 'anime';
 
 export const wordDatabase: Record<RealWordCategory, WordPair[]> = {
   facile: [
@@ -195,5 +195,77 @@ export const wordDatabase: Record<RealWordCategory, WordPair[]> = {
     { civil: 'Convertisseur', undercover: 'Adaptateur' },
     { civil: 'Duty free', undercover: 'Boutique souvenir' },
     { civil: 'Escale', undercover: 'Correspondance' },
+  ],
+  anime: [
+    // Pervers / obsédés par les femmes
+    { civil: 'Sanji', undercover: 'Jiraya' },
+    // Génies stratèges froids et calculateurs
+    { civil: 'Shikamaru', undercover: 'Kurapika' },
+    // Méchants charismatiques et manipulateurs proches des enfants
+    { civil: 'Hisoka', undercover: 'Orochimaru' },
+    // Rivaux du héros, orgueilleux avec une fierté de guerrier
+    { civil: 'Vegeta', undercover: 'Sasuke' },
+    // Héros naïfs et affamés avec une volonté surhumaine
+    { civil: 'Luffy', undercover: 'Goku' },
+    // Mentors puissants qui meurent pour protéger leur élève
+    { civil: 'Ace', undercover: 'Jiraya' },
+    // Femmes fortes à sale caractère qui frappent le héros
+    { civil: 'Nami', undercover: 'Sakura' },
+    // Antagonistes idéalistes qui veulent la paix par la force
+    { civil: 'Pain', undercover: 'Erwin' },
+    // Guerriers stoïques au passé tragique, peu expressifs
+    { civil: 'Zoro', undercover: 'Livaï' },
+    // Scientifiques fous et excentriques
+    { civil: 'Franky', undercover: 'Bulma' },
+    // Traîtres charismatiques qui changent de camp
+    { civil: 'Itachi', undercover: 'Kirua' },
+    // Personnages comiques qui deviennent terrifiants en combat
+    { civil: 'Usopp', undercover: 'Leorio' },
+    // Héros au destin tragique portant un fardeau immense
+    { civil: 'Naruto', undercover: 'Eren' },
+    // Vieux maîtres pervers mais incroyablement puissants
+    { civil: 'Tortue Géniale', undercover: 'Jiraya' },
+    // Méchants qui se croient des dieux
+    { civil: 'Freezer', undercover: 'Madara' },
+    // Femmes guerrières belles et terrifiantes
+    { civil: 'Boa Hancock', undercover: 'Mikasa' },
+    // Personnages masqués avec une double identité
+    { civil: 'Kakashi', undercover: 'Tobi' },
+    // Frères ennemis avec un lien tragique
+    { civil: 'Itachi', undercover: 'Ace' },
+    // Combattants surpuissants qui cachent leur vrai pouvoir
+    { civil: 'Gon', undercover: 'Gohan' },
+    // Rois/chefs autoritaires et impitoyables
+    { civil: 'Méruem', undercover: 'Vegeta' },
+    // Personnages qui se sacrifient pour sauver leurs amis
+    { civil: 'Ace', undercover: 'Néji' },
+    // Antagonistes manipulateurs dans l'ombre
+    { civil: 'Aizen', undercover: 'Blackbeard' },
+    // Combattants qui deviennent fous en combat (berserk)
+    { civil: 'Gon', undercover: 'Broly' },
+    // Personnages joyeux qui cachent une profonde tristesse
+    { civil: 'Robin', undercover: 'Naruto' },
+    // Génies du combat nés avec un talent naturel
+    { civil: 'Livaï', undercover: 'Goku' },
+    // Méchants sadiques qui torturent pour le plaisir
+    { civil: 'Hisoka', undercover: 'Freezer' },
+    // Personnages qui veulent devenir le plus fort / le roi
+    { civil: 'Luffy', undercover: 'Naruto' },
+    // Duos maître-élève légendaires
+    { civil: 'Kakashi', undercover: 'Bisky' },
+    // Femmes intelligentes et stratèges
+    { civil: 'Nami', undercover: 'Bulma' },
+    // Personnages immortels ou quasi-indestructibles
+    { civil: 'Majin Buu', undercover: 'Orochimaru' },
+    // Anti-héros sombres avec un code moral personnel
+    { civil: 'Kirua', undercover: 'Sasuke' },
+    // Personnages qui inspirent les foules et changent le monde
+    { civil: 'Luffy', undercover: 'Eren' },
+    // Combattants obsédés par le combat et l'adrénaline
+    { civil: 'Goku', undercover: 'Hisoka' },
+    // Personnages qui ont perdu tout leur clan/famille
+    { civil: 'Sasuke', undercover: 'Kurapika' },
+    // Leaders charismatiques prêts à tout pour leur équipage/équipe
+    { civil: 'Erwin', undercover: 'Barbe Blanche' },
   ],
 };

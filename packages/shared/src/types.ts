@@ -1,6 +1,6 @@
 export type Role = 'civil' | 'undercover' | 'mrwhite';
 
-export type WordCategory = 'facile' | 'expert' | 'adulte' | 'gastronomie' | 'voyage' | 'aleatoire';
+export type WordCategory = 'facile' | 'expert' | 'adulte' | 'gastronomie' | 'voyage' | 'anime' | 'aleatoire';
 
 export interface WordPair {
   civil: string;
