@@ -352,24 +352,35 @@ export const gameMachine = setup({
         const pickedWord = words[randomIndex]
         const newUsedIndices = [...usedIndices, randomIndex]
 
+        // 50/50 swap: civil and undercover roles are randomized each game
+        const swap = cryptoRandom(2) === 1
+        const finalWord = swap
+          ? { civil: pickedWord.undercover, undercover: pickedWord.civil }
+          : pickedWord
+
         return {
-          wordPair: pickedWord ?? null,
+          wordPair: finalWord ?? null,
           usedWordPairIndices: {
             ...context.usedWordPairIndices,
             [resolvedCategory]: newUsedIndices,
           },
-          usedCivilWords: [...context.usedCivilWords, pickedWord.civil],
+          usedCivilWords: [...context.usedCivilWords, pickedWord.civil, pickedWord.undercover],
         }
       }
 
-      // Fallback: all 175 words exhausted — reset and pick fresh
+      // Fallback: all words exhausted — reset and pick fresh
       const fallbackCategory = realCategories[cryptoRandom(realCategories.length)]
       const fallbackWords = wordDatabase[fallbackCategory]
       const fallbackIndex = cryptoRandom(fallbackWords.length)
+      const fallbackPick = fallbackWords[fallbackIndex]
+      const fallbackSwap = cryptoRandom(2) === 1
+      const fallbackWord = fallbackSwap
+        ? { civil: fallbackPick.undercover, undercover: fallbackPick.civil }
+        : fallbackPick
       return {
-        wordPair: fallbackWords[fallbackIndex] ?? null,
+        wordPair: fallbackWord ?? null,
         usedWordPairIndices: { [fallbackCategory]: [fallbackIndex] },
-        usedCivilWords: [fallbackWords[fallbackIndex].civil],
+        usedCivilWords: [fallbackPick.civil, fallbackPick.undercover],
       }
     }),
 

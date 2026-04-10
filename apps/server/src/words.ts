@@ -207,8 +207,8 @@ export const wordDatabase: Record<RealWordCategory, WordPair[]> = {
     { civil: 'Vegeta', undercover: 'Sasuke' },
     // Héros naïfs et affamés avec une volonté surhumaine
     { civil: 'Luffy', undercover: 'Goku' },
-    // Mentors puissants qui meurent pour protéger leur élève
-    { civil: 'Ace', undercover: 'Jiraya' },
+    // Grands frères protecteurs qui se sacrifient
+    { civil: 'Ace', undercover: 'Itachi' },
     // Femmes fortes à sale caractère qui frappent le héros
     { civil: 'Nami', undercover: 'Sakura' },
     // Antagonistes idéalistes qui veulent la paix par la force
@@ -224,7 +224,7 @@ export const wordDatabase: Record<RealWordCategory, WordPair[]> = {
     // Héros au destin tragique portant un fardeau immense
     { civil: 'Naruto', undercover: 'Eren' },
     // Vieux maîtres pervers mais incroyablement puissants
-    { civil: 'Tortue Géniale', undercover: 'Jiraya' },
+    { civil: 'Tortue Géniale', undercover: 'Brook' },
     // Méchants qui se croient des dieux
     { civil: 'Freezer', undercover: 'Madara' },
     // Femmes guerrières belles et terrifiantes
