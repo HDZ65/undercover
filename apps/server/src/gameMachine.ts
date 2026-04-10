@@ -252,7 +252,15 @@ export const gameMachine = setup({
         return {}
       }
 
-      if (!context.alivePlayers.includes(event.playerId) || context.readyPlayers.includes(event.playerId)) {
+      if (context.readyPlayers.includes(event.playerId)) {
+        return {}
+      }
+
+      if (!context.alivePlayers.includes(event.playerId)) {
+        console.warn(`[Undercover] PLAYER_READY ignored: player ${event.playerId} not in alivePlayers`, {
+          alivePlayers: context.alivePlayers,
+          allPlayers: context.players.map(p => p.id),
+        })
         return {}
       }
 

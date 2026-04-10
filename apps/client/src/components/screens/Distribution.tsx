@@ -1,4 +1,4 @@
-import { useContext } from 'react'
+import { useContext, useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import type { Role } from '@undercover/shared'
 import { SocketContext } from '../../App'
@@ -24,11 +24,20 @@ export function Distribution() {
 
   const role = socket.privateState.role
   const hideRoles = socket.publicState.hideRoles
-  const isReady = socket.publicState.readyPlayers.includes(socket.privateState.playerId)
+  const serverReady = socket.publicState.readyPlayers.includes(socket.privateState.playerId)
   const isAlive = socket.publicState.alivePlayers.includes(socket.privateState.playerId)
   const readyCount = socket.publicState.readyPlayers.length
   const totalAlive = socket.publicState.alivePlayers.length
   const currentRound = socket.publicState.currentRound
+
+  // Optimistic local state: show as ready immediately after click
+  const [localReady, setLocalReady] = useState(false)
+  const isReady = serverReady || localReady
+
+  // Reset local state when server confirms or round changes
+  useEffect(() => {
+    setLocalReady(false)
+  }, [currentRound])
 
   // In hideRoles mode: no role shown, only the word (or "Pas de mot" for Mr. White)
   // The player doesn't know if they're Civil, Undercover, or Mr. White
@@ -110,7 +119,7 @@ export function Distribution() {
 
         {isAlive ? (
           <motion.button
-            onClick={socket.markReady}
+            onClick={() => { socket.markReady(); setLocalReady(true); }}
             disabled={isReady}
             className="w-full min-h-[56px] px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 dark:from-blue-500 dark:to-purple-500 text-white font-bold text-lg rounded-lg shadow-lg disabled:opacity-50"
             whileHover={{ scale: isReady ? 1 : 1.01 }}
