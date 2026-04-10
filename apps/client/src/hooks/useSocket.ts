@@ -17,7 +17,7 @@ const STORAGE_KEY_ROOM = 'undercover-room-code'
 
 type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
-const CATEGORIES: WordCategory[] = ['facile', 'expert', 'adulte', 'gastronomie', 'voyage', 'aleatoire']
+const CATEGORIES: WordCategory[] = ['facile', 'expert', 'adulte', 'gastronomie', 'voyage', 'anime', 'aleatoire']
 
 interface UseSocketReturn {
   connected: boolean
