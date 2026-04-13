@@ -29,7 +29,7 @@ function Landing({ onCreateRoom, onJoinRoom }: {
 
       {mode === 'menu' && (
         <div className="space-y-3">
-          <button onClick={() => setMode('create')} className="w-full py-4 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-lg rounded-xl shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-transform">
+          <button onClick={() => setMode('create')} className="w-full py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-lg rounded-xl shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-transform">
             Créer une partie
           </button>
           <button onClick={() => setMode('join')} className="w-full py-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold text-lg rounded-xl shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-transform">
@@ -44,13 +44,13 @@ function Landing({ onCreateRoom, onJoinRoom }: {
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Votre pseudo"
-            className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-amber-400"
+            className="w-full px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-blue-400"
             maxLength={20}
           />
           <button
             onClick={() => name.trim() && onCreateRoom(name.trim())}
             disabled={!name.trim()}
-            className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-xl disabled:opacity-50"
+            className="w-full py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold rounded-xl disabled:opacity-50"
           >
             Créer
           </button>
@@ -109,7 +109,7 @@ function LobbyPhase({ pub, priv, onStart, onSetTarget, onLeave }: {
           <div key={p.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl ${p.connected ? 'bg-white dark:bg-slate-800' : 'bg-slate-100 dark:bg-slate-900 opacity-50'} border border-slate-200 dark:border-slate-700`}>
             <PixelCharacter characterIndex={p.characterIndex} hp={100} name="" size={3} />
             <span className="font-bold text-slate-800 dark:text-slate-200 flex-1">{p.name}</span>
-            {p.id === pub.hostId && <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-2 py-0.5 rounded-full">Hôte</span>}
+            {p.id === pub.hostId && <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-0.5 rounded-full">Hôte</span>}
           </div>
         ))}
       </div>
@@ -124,7 +124,7 @@ function LobbyPhase({ pub, priv, onStart, onSetTarget, onLeave }: {
                   key={v}
                   onClick={() => onSetTarget(v)}
                   className={`px-3 py-1 rounded-lg text-sm font-bold transition-colors ${pub.targetScore === v
-                    ? 'bg-amber-500 text-white'
+                    ? 'bg-blue-500 text-white'
                     : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                   }`}
                 >
@@ -137,7 +137,7 @@ function LobbyPhase({ pub, priv, onStart, onSetTarget, onLeave }: {
           <button
             onClick={onStart}
             disabled={pub.players.length < 2}
-            className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-bold text-lg rounded-xl shadow-lg disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white font-bold text-lg rounded-xl shadow-lg disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98] transition-transform"
           >
             Lancer la partie ({pub.players.length}/2 min)
           </button>
@@ -310,7 +310,7 @@ function GamePhase({ pub, priv, game }: {
           const hp = getHpForPlayer(p.id)
           const isCurrent = pub.currentPlayerId === p.id
           return (
-            <div key={p.id} className={`relative ${isCurrent ? 'ring-2 ring-amber-400 rounded-xl p-2' : 'p-2'}`}>
+            <div key={p.id} className={`relative ${isCurrent ? 'ring-2 ring-blue-400 rounded-xl p-2' : 'p-2'}`}>
               <PixelCharacter
                 characterIndex={p.characterIndex}
                 hp={hp}
@@ -325,14 +325,14 @@ function GamePhase({ pub, priv, game }: {
       </div>
 
       {/* Board */}
-      <div className="flex-1 bg-emerald-800/10 dark:bg-emerald-900/20 rounded-2xl border border-emerald-700/20 min-h-[100px] flex items-center overflow-hidden">
+      <div className="flex-1 bg-blue-800/10 dark:bg-blue-900/20 rounded-2xl border border-blue-700/20 min-h-[100px] flex items-center overflow-hidden">
         <BoardView board={pub.board} />
       </div>
 
       {/* Turn indicator */}
       <div className="text-center">
         {isMyTurn ? (
-          <span className="text-emerald-600 dark:text-emerald-400 font-bold">C'est votre tour !</span>
+          <span className="text-blue-600 dark:text-blue-400 font-bold">C'est votre tour !</span>
         ) : (
           <span className="text-slate-500">Au tour de {pub.players.find(p => p.id === pub.currentPlayerId)?.name ?? '...'}</span>
         )}
@@ -414,22 +414,22 @@ function GameOverPhase({ pub, priv, onReset }: {
         <div className="flex flex-col items-center gap-2">
           <PixelCharacter characterIndex={winner.characterIndex} hp={100} name={winner.name} isVictorious size={6} />
           <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{winner.name} remporte la partie !</p>
-          <p className="text-amber-500 font-bold">{winner.totalScore} points</p>
+          <p className="text-blue-500 font-bold">{winner.totalScore} points</p>
         </div>
       )}
 
       <div className="space-y-2">
         {sorted.map((p, i) => (
-          <div key={p.id} className={`flex items-center gap-3 px-4 py-2 rounded-xl ${i === 0 ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}>
+          <div key={p.id} className={`flex items-center gap-3 px-4 py-2 rounded-xl ${i === 0 ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700'}`}>
             <span className="text-lg font-bold text-slate-400 w-6">{i + 1}</span>
             <span className="font-bold text-slate-800 dark:text-slate-200 flex-1">{p.name}</span>
-            <span className="font-bold text-amber-600 dark:text-amber-400">{p.totalScore} pts</span>
+            <span className="font-bold text-blue-600 dark:text-blue-400">{p.totalScore} pts</span>
           </div>
         ))}
       </div>
 
       {priv.isHost && (
-        <button onClick={onReset} className="px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold rounded-xl shadow-lg">
+        <button onClick={onReset} className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold rounded-xl shadow-lg">
           Nouvelle partie
         </button>
       )}
@@ -460,7 +460,7 @@ export function DominosLobby({ onBack }: { onBack: () => void }) {
   const isGamePhase = pub.phase === 'playerTurn'
 
   return (
-    <div className={isGamePhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto bg-gradient-to-b from-stone-100 to-amber-50 dark:from-slate-900 dark:to-slate-950' : 'w-full'}>
+    <div className={isGamePhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto bg-gradient-to-b from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-blue-950' : 'w-full'}>
       <AnimatePresence mode="wait">
         {pub.phase === 'lobby' && (
           <LobbyPhase
