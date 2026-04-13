@@ -11,6 +11,9 @@
       "Bash(lsof -ti:3001)",
       "Bash(xargs kill:*)",
       "Bash(xargs grep:*)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\compt\\.claude"
     ]
   }
 }
