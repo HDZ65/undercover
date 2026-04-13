@@ -97,7 +97,7 @@ export function DominoTileComponent({
   } else if (playable) {
     containerClasses += ' cursor-pointer ring-2 ring-emerald-400 shadow-[0_4px_0_rgba(52,211,153,0.8),0_0_20px_rgba(52,211,153,0.5)] hover:-translate-y-2 hover:shadow-[0_6px_0_rgba(52,211,153,0.8),0_0_25px_rgba(52,211,153,0.6)] z-10 animate-[dominos-glow_1.5s_ease-in-out_infinite]'
   } else {
-    containerClasses += ' opacity-30 grayscale-[70%] shadow-[0_2px_0_rgba(203,213,225,0.5)] dark:shadow-[0_2px_0_rgba(51,65,85,0.5)] z-0 pointer-events-none'
+    containerClasses += ' shadow-[0_2px_0_rgba(203,213,225,0.5)] dark:shadow-[0_2px_0_rgba(51,65,85,0.5)] z-0'
   }
 
   return (
