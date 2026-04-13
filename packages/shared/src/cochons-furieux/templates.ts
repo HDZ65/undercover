@@ -8,62 +8,64 @@ function rect(x: number, y: number, w: number, h: number, type: CellType): Array
 function wall(x: number, y: number, h: number, type: CellType) { return rect(x, y, 1, h, type) }
 function floor(x: number, y: number, w: number, type: CellType) { return rect(x, y, w, 1, type) }
 
-/** All templates use relative coords 0-19. Max height ~7 rows to leave sky space. */
+/**
+ * Templates use relative coords 0-19.
+ * Server offsets by +20 for right-side player.
+ * Structures centered around cols 10-17 (away from catapult at col 1-2).
+ * Max height: 5-6 rows to leave lots of sky for arcs.
+ */
 export const CASTLE_TEMPLATES: CastleTemplate[] = [
   {
     id: 'tour',
     labelFr: 'Tour',
-    description: 'Tour étroite et haute',
+    description: 'Tour étroite',
     blocks: [
-      ...rect(9, 0, 3, 1, 'stone'),
-      ...wall(9, 1, 6, 'wood'), ...wall(11, 1, 6, 'wood'),
-      ...floor(10, 1, 1, 'wood'), ...floor(10, 3, 1, 'wood'), ...floor(10, 5, 1, 'wood'),
-      ...rect(9, 7, 3, 1, 'stone'),
+      ...rect(12, 0, 2, 1, 'stone'),
+      ...wall(12, 1, 5, 'wood'), ...wall(13, 1, 5, 'wood'),
+      ...floor(12, 3, 2, 'wood'),
+      ...rect(12, 6, 2, 1, 'stone'),
     ],
   },
   {
     id: 'forteresse',
     labelFr: 'Forteresse',
-    description: 'Bunker large et résistant',
+    description: 'Bunker large',
     blocks: [
-      ...rect(4, 0, 12, 1, 'steel'),
-      ...wall(4, 1, 3, 'stone'), ...wall(15, 1, 3, 'stone'),
-      ...wall(8, 1, 2, 'stone'), ...wall(11, 1, 2, 'stone'),
-      ...floor(5, 1, 3, 'wood'), ...floor(9, 1, 2, 'wood'), ...floor(12, 1, 3, 'wood'),
-      ...rect(4, 3, 12, 1, 'stone'),
+      ...rect(10, 0, 8, 1, 'steel'),
+      ...wall(10, 1, 3, 'stone'), ...wall(17, 1, 3, 'stone'),
+      ...wall(13, 1, 2, 'stone'),
+      ...floor(11, 1, 2, 'wood'), ...floor(14, 1, 3, 'wood'),
+      ...rect(10, 3, 8, 1, 'stone'),
     ],
   },
   {
     id: 'pyramide',
     labelFr: 'Pyramide',
-    description: 'Stable et protégée à la base',
+    description: 'Stable à la base',
     blocks: [
-      ...rect(5, 0, 10, 1, 'stone'),
-      ...rect(6, 1, 8, 1, 'wood'),
-      ...rect(7, 2, 6, 1, 'stone'),
-      ...rect(8, 3, 4, 1, 'wood'),
-      ...rect(9, 4, 2, 1, 'stone'),
+      ...rect(10, 0, 8, 1, 'stone'),
+      ...rect(11, 1, 6, 1, 'wood'),
+      ...rect(12, 2, 4, 1, 'stone'),
+      ...rect(13, 3, 2, 1, 'wood'),
     ],
   },
   {
     id: 'chateau',
     labelFr: 'Château',
-    description: 'Classique avec 2 tours',
+    description: '2 tours + mur',
     blocks: [
       // Left tower
-      ...rect(5, 0, 3, 1, 'steel'),
-      ...wall(5, 1, 5, 'stone'), ...wall(7, 1, 5, 'stone'),
-      ...floor(6, 1, 1, 'wood'), ...floor(6, 3, 1, 'wood'),
-      ...rect(5, 6, 3, 1, 'stone'),
+      ...rect(10, 0, 2, 1, 'steel'),
+      ...wall(10, 1, 4, 'stone'), ...wall(11, 1, 4, 'stone'),
+      ...rect(10, 5, 2, 1, 'stone'),
       // Right tower
-      ...rect(13, 0, 3, 1, 'steel'),
-      ...wall(13, 1, 5, 'stone'), ...wall(15, 1, 5, 'stone'),
-      ...floor(14, 1, 1, 'wood'), ...floor(14, 3, 1, 'wood'),
-      ...rect(13, 6, 3, 1, 'stone'),
+      ...rect(16, 0, 2, 1, 'steel'),
+      ...wall(16, 1, 4, 'stone'), ...wall(17, 1, 4, 'stone'),
+      ...rect(16, 5, 2, 1, 'stone'),
       // Wall between
-      ...rect(7, 0, 6, 1, 'stone'),
-      ...wall(8, 1, 2, 'wood'), ...wall(12, 1, 2, 'wood'),
-      ...floor(8, 2, 5, 'stone'),
+      ...rect(11, 0, 5, 1, 'stone'),
+      ...wall(12, 1, 2, 'wood'), ...wall(15, 1, 2, 'wood'),
+      ...floor(12, 2, 4, 'stone'),
     ],
   },
 ]

@@ -25,19 +25,23 @@ const BLOCK_STYLE: Record<CellType, { bg: string; border: string; shadow: string
 
 // ─── Grid Renderer (Angry Birds style) ───────────────────────────
 
-// Compute a preview trajectory for the slingshot drag (client-side only, not authoritative)
+// Physics constants — MUST match server (physics.ts)
+const PH = { GRAVITY: 10, MAX_VELOCITY: 28, DT: 0.03, MAX_TIME: 15 }
+
+function getLaunchPos(side: PlayerSide) {
+  return side === 'left' ? { x: 1.5, y: 2 } : { x: GRID_COLS - 1.5, y: 2 }
+}
+
 function previewTrajectory(angle: number, power: number, side: PlayerSide): TrajectoryPoint[] {
-  const GRAVITY = 12; const MAX_V = 35; const DT = 0.04
-  const x0 = side === 'left' ? 1.5 : GRID_COLS - 1.5
-  const y0 = 2
-  const v0 = power * MAX_V
+  const { x: x0, y: y0 } = getLaunchPos(side)
+  const v0 = power * PH.MAX_VELOCITY
   const dirX = side === 'left' ? 1 : -1
   const vx = v0 * Math.cos(angle) * dirX
   const vy = v0 * Math.sin(angle)
   const pts: TrajectoryPoint[] = []
-  for (let t = 0; t < 8; t += DT) {
+  for (let t = 0; t < PH.MAX_TIME; t += PH.DT) {
     const x = x0 + vx * t
-    const y = y0 + vy * t - 0.5 * GRAVITY * t * t
+    const y = y0 + vy * t - 0.5 * PH.GRAVITY * t * t
     if (y < -1 || x < -3 || x > GRID_COLS + 3) break
     pts.push({ x, y })
   }
@@ -215,30 +219,34 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
         return cells
       })()}
 
-      {/* ── Flying projectile ── */}
+      {/* ── Flying projectile + trail ── */}
       {projectilePos && (
-        <div className="absolute z-40 pointer-events-none"
-          style={{
-            left: projectilePos.x * cs - cs * 0.6,
-            top: (GRID_ROWS - projectilePos.y) * cs - cs * 0.6,
-            width: cs * 1.2, height: cs * 1.2,
-          }}>
-          {/* Rock/bomb/missile */}
-          <div className="w-full h-full rounded-full bg-gradient-to-br from-slate-500 to-slate-700 border-2 border-slate-800 shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
-        </div>
+        <>
+          {/* The stone — positioned with same coord system as trajectory dots */}
+          <div className="absolute z-40 pointer-events-none rounded-full bg-gradient-to-br from-slate-400 to-slate-700 border-2 border-slate-800"
+            style={{
+              left: projectilePos.x * cs - cs * 0.7,
+              top: (GRID_ROWS - projectilePos.y) * cs - cs * 0.7,
+              width: cs * 1.4, height: cs * 1.4,
+              boxShadow: '0 0 12px rgba(0,0,0,0.6), 0 0 4px rgba(255,150,50,0.4)',
+            }}
+          />
+          {/* Trail dots behind the projectile */}
+          <svg className="absolute inset-0 pointer-events-none z-30" width={W} height={H}>
+            {trajectory && trajectory.map((p, i) => {
+              // Only show dots up to the current projectile position
+              const px = projectilePos.x * cs; const py = (GRID_ROWS - projectilePos.y) * cs
+              const dotX = p.x * cs; const dotY = (GRID_ROWS - p.y) * cs
+              const dist = Math.sqrt((dotX - px) ** 2 + (dotY - py) ** 2)
+              if (dist < cs * 2) return null // skip dots near the projectile
+              if (i % 4 !== 0) return null
+              return <circle key={i} cx={dotX} cy={dotY} r={2.5} fill="rgba(255,255,255,0.5)" />
+            })}
+          </svg>
+        </>
       )}
 
-      {/* ── Trail dots (shown behind the projectile) ── */}
-      {projectilePos && trajectory && (
-        <svg className="absolute inset-0 pointer-events-none z-20" width={W} height={H}>
-          {trajectory.slice(0, Math.floor((trajectory.length) * (projectilePos ? 1 : 0))).filter((_, i) => i % 4 === 0).map((p, i) => (
-            <circle key={i} cx={p.x * cs} cy={(GRID_ROWS - p.y) * cs} r={2}
-              fill="rgba(255,255,255,0.4)" />
-          ))}
-        </svg>
-      )}
-
-      {/* ── Trajectory dots (full trail after projectile lands) ── */}
+      {/* ── Full trajectory dots (after projectile has landed) ── */}
       {!projectilePos && trajectory && trajectory.length > 1 && (
         <svg className="absolute inset-0 pointer-events-none z-20" width={W} height={H}>
           {trajectory.filter((_, i) => i % 3 === 0).map((p, i) => (
