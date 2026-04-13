@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import type {
   Grid,
@@ -25,14 +25,41 @@ const BLOCK_STYLE: Record<CellType, { bg: string; border: string; shadow: string
 
 // ─── Grid Renderer (Angry Birds style) ───────────────────────────
 
-function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, trajectory }: {
+// Compute a preview trajectory for the slingshot drag (client-side only, not authoritative)
+function previewTrajectory(angle: number, power: number, side: PlayerSide): TrajectoryPoint[] {
+  const GRAVITY = 12; const MAX_V = 35; const DT = 0.04
+  const x0 = side === 'left' ? 1.5 : GRID_COLS - 1.5
+  const y0 = 2
+  const v0 = power * MAX_V
+  const dirX = side === 'left' ? 1 : -1
+  const vx = v0 * Math.cos(angle) * dirX
+  const vy = v0 * Math.sin(angle)
+  const pts: TrajectoryPoint[] = []
+  for (let t = 0; t < 8; t += DT) {
+    const x = x0 + vx * t
+    const y = y0 + vy * t - 0.5 * GRAVITY * t * t
+    if (y < -1 || x < -3 || x > GRID_COLS + 3) break
+    pts.push({ x, y })
+  }
+  return pts
+}
+
+function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, trajectory, shootSide, onFire }: {
   grid: Grid
   mySide?: PlayerSide
   editMode?: { tool: 'pig' | CellType }
   onCellClick?: (col: number, row: number) => void
   impactResult?: ShotResult | null
   trajectory?: TrajectoryPoint[] | null
+  shootSide?: PlayerSide       // which side the current player shoots from
+  onFire?: (angle: number, power: number) => void
 }) {
+  // Drag state for slingshot
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dragging, setDragging] = useState(false)
+  const [dragDelta, setDragDelta] = useState<{ dx: number; dy: number } | null>(null)
+  const dragOrigin = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+
   // Responsive cell size — fill the viewport width
   const cs = Math.max(12, Math.floor((typeof window !== 'undefined' ? window.innerWidth - 16 : 800) / GRID_COLS))
   const W = GRID_COLS * cs
@@ -40,7 +67,7 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
   const groundH = Math.round(cs * 1.5)
 
   return (
-    <div className="relative w-full overflow-hidden select-none" style={{ height: H + groundH }}>
+    <div ref={containerRef} className="relative w-full overflow-hidden select-none" style={{ height: H + groundH }}>
 
       {/* ── Sky ── */}
       <div className="absolute inset-0" style={{ height: H }}>
@@ -195,13 +222,102 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
         </>
       )}
 
-      {/* ── Catapults (slingshots) ── */}
-      <div className="absolute z-20 flex flex-col items-center" style={{ left: cs * 1, bottom: groundH, transform: 'translateY(10%)' }}>
-        <div className="text-2xl">🏹</div>
-      </div>
-      <div className="absolute z-20 flex flex-col items-center" style={{ right: cs * 1, bottom: groundH, transform: 'translateY(10%) scaleX(-1)' }}>
-        <div className="text-2xl">🏹</div>
-      </div>
+      {/* ── Slingshots ── */}
+      {(['left', 'right'] as PlayerSide[]).map(side => {
+        const slingshotX = side === 'left' ? cs * 1.5 : W - cs * 2.5
+        const slingshotY = H - cs * 2
+        const isActive = shootSide === side && !!onFire
+        const forkW = cs * 1.5
+        const forkH = cs * 3
+
+        // Compute drag angle/power for preview
+        const dragAngle = dragDelta && dragging && isActive
+          ? Math.atan2(-dragDelta.dy, side === 'left' ? -dragDelta.dx : dragDelta.dx)
+          : null
+        const dragPower = dragDelta && dragging && isActive
+          ? Math.min(1, Math.sqrt(dragDelta.dx ** 2 + dragDelta.dy ** 2) / 150)
+          : null
+        const preview = dragAngle !== null && dragPower !== null && dragPower > 0.05
+          ? previewTrajectory(dragAngle, dragPower, side)
+          : null
+
+        return (
+          <div key={side}>
+            {/* Slingshot body */}
+            <div
+              className={`absolute z-30 ${isActive ? 'cursor-grab active:cursor-grabbing' : ''}`}
+              style={{ left: slingshotX, top: slingshotY, width: forkW, height: forkH, touchAction: 'none' }}
+              onPointerDown={isActive ? (e) => {
+                const rect = containerRef.current?.getBoundingClientRect()
+                if (!rect) return
+                dragOrigin.current = { x: e.clientX, y: e.clientY }
+                setDragging(true)
+                setDragDelta({ dx: 0, dy: 0 })
+                ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+              } : undefined}
+              onPointerMove={dragging && isActive ? (e) => {
+                setDragDelta({
+                  dx: e.clientX - dragOrigin.current.x,
+                  dy: e.clientY - dragOrigin.current.y,
+                })
+              } : undefined}
+              onPointerUp={dragging && isActive ? () => {
+                if (dragDelta && onFire) {
+                  const dist = Math.sqrt(dragDelta.dx ** 2 + dragDelta.dy ** 2)
+                  const power = Math.min(1, dist / 150)
+                  const angle = Math.atan2(-dragDelta.dy, side === 'left' ? -dragDelta.dx : dragDelta.dx)
+                  if (power > 0.05) onFire(angle, power)
+                }
+                setDragging(false)
+                setDragDelta(null)
+              } : undefined}
+            >
+              {/* Fork (Y shape) */}
+              <svg width={forkW} height={forkH} viewBox="0 0 30 60" className="drop-shadow-md">
+                {/* Trunk */}
+                <rect x="12" y="25" width="6" height="35" rx="2" fill="#6D4C2E" />
+                {/* Left fork */}
+                <rect x="3" y="5" width="5" height="25" rx="2" fill="#6D4C2E" transform="rotate(-12, 5, 30)" />
+                {/* Right fork */}
+                <rect x="22" y="5" width="5" height="25" rx="2" fill="#6D4C2E" transform="rotate(12, 25, 30)" />
+                {/* Fork tips */}
+                <circle cx="5" cy="5" r="3" fill="#8B6F47" />
+                <circle cx="25" cy="5" r="3" fill="#8B6F47" />
+              </svg>
+
+              {/* Elastic band when dragging */}
+              {dragging && dragDelta && isActive && (
+                <svg className="absolute top-0 left-0 pointer-events-none overflow-visible" width={forkW} height={forkH} viewBox="0 0 30 60" style={{ zIndex: 40 }}>
+                  {/* Left band */}
+                  <line x1="5" y1="5" x2={15 + dragDelta.dx * 0.2} y2={30 + dragDelta.dy * 0.2} stroke="#5C3A1E" strokeWidth="3" strokeLinecap="round" />
+                  {/* Right band */}
+                  <line x1="25" y1="5" x2={15 + dragDelta.dx * 0.2} y2={30 + dragDelta.dy * 0.2} stroke="#5C3A1E" strokeWidth="3" strokeLinecap="round" />
+                  {/* Projectile in the pouch */}
+                  <circle cx={15 + dragDelta.dx * 0.2} cy={30 + dragDelta.dy * 0.2} r="5" fill="#666" stroke="#444" strokeWidth="1" />
+                </svg>
+              )}
+            </div>
+
+            {/* Trajectory preview while dragging */}
+            {preview && (
+              <svg className="absolute inset-0 pointer-events-none z-20" width={W} height={H}>
+                {preview.filter((_, i) => i % 4 === 0).map((p, i) => (
+                  <circle key={i} cx={p.x * cs} cy={(GRID_ROWS - p.y) * cs} r={2.5}
+                    fill="rgba(255,255,255,0.5)" />
+                ))}
+              </svg>
+            )}
+
+            {/* Power indicator while dragging */}
+            {dragging && dragDelta && isActive && dragPower !== null && (
+              <div className="absolute z-40 text-white text-xs font-bold bg-black/60 px-2 py-1 rounded-lg"
+                style={{ left: slingshotX - 10, top: slingshotY - 30 }}>
+                {Math.round(dragPower * 100)}%
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -224,39 +340,6 @@ function WeaponSelector({ inventory, selected, onSelect }: {
           </button>
         )
       })}
-    </div>
-  )
-}
-
-// ─── Slingshot ───────────────────────────────────────────────────
-
-function Slingshot({ onFire, disabled }: { onFire: (angle: number, power: number) => void; disabled: boolean }) {
-  const [power, setPower] = useState(0)
-  const [angle, setAngle] = useState(45)
-
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="flex gap-4 items-center">
-        <div className="flex flex-col items-center gap-1">
-          <label className="text-[10px] text-slate-400">Angle</label>
-          <input type="range" min={10} max={80} value={angle} onChange={e => setAngle(Number(e.target.value))}
-            disabled={disabled} className="w-24 accent-orange-500" />
-          <span className="text-xs font-bold text-slate-300">{angle}°</span>
-        </div>
-        <div className="flex flex-col items-center gap-1">
-          <label className="text-[10px] text-slate-400">Puissance</label>
-          <input type="range" min={10} max={100} value={power || 50} onChange={e => setPower(Number(e.target.value))}
-            disabled={disabled} className="w-24 accent-red-500" />
-          <span className="text-xs font-bold text-slate-300">{power || 50}%</span>
-        </div>
-      </div>
-      <button
-        onClick={() => !disabled && onFire(angle * Math.PI / 180, (power || 50) / 100)}
-        disabled={disabled}
-        className="px-6 py-2 bg-gradient-to-r from-red-500 to-orange-600 text-white font-bold rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-transform disabled:opacity-50"
-      >
-        🔥 Tirer !
-      </button>
     </div>
   )
 }
@@ -417,13 +500,16 @@ function BattlePhase({ pub, priv, game }: { pub: CochonsPublicState; priv: Cocho
         grid={grid}
         impactResult={lastShot?.result}
         trajectory={lastShot?.result.trajectory}
+        shootSide={isMyTurn ? priv.side : undefined}
+        onFire={isMyTurn ? (angle, power) => game.fire(angle, power, selectedWeapon) : undefined}
       />
 
       {isMyTurn && myPlayer && (
-        <>
-          <WeaponSelector inventory={myPlayer.weaponInventory} selected={selectedWeapon} onSelect={setSelectedWeapon} />
-          <Slingshot onFire={(angle, power) => game.fire(angle, power, selectedWeapon)} disabled={!isMyTurn} />
-        </>
+        <WeaponSelector inventory={myPlayer.weaponInventory} selected={selectedWeapon} onSelect={setSelectedWeapon} />
+      )}
+
+      {isMyTurn && (
+        <p className="text-sm text-amber-500 font-medium animate-pulse">↕ Glissez la catapulte pour viser et tirer !</p>
       )}
 
       {lastShot && (
