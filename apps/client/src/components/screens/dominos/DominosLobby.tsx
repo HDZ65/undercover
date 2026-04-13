@@ -174,11 +174,11 @@ function BoardView({ board }: { board: BoardState }) {
   }
 
   return (
-    <div className="py-2 px-2 space-y-1 overflow-x-auto">
+    <div className="py-2 px-2 space-y-1 w-full">
       {rows.map((row, rowIdx) => (
         <div
           key={rowIdx}
-          className={`flex items-center gap-0.5 ${rowIdx % 2 === 1 ? 'flex-row-reverse' : ''}`}
+          className={`flex items-center justify-center gap-0.5 ${rowIdx % 2 === 1 ? 'flex-row-reverse' : ''}`}
         >
           {row.map((bt, i) => {
             // flipped controls which pip faces which direction on the board
@@ -199,9 +199,7 @@ function BoardView({ board }: { board: BoardState }) {
           })}
           {/* Arrow indicator for row continuation */}
           {rowIdx < rows.length - 1 && (
-            <span className="text-slate-400 text-lg px-1">
-              {rowIdx % 2 === 0 ? '↓' : '↓'}
-            </span>
+            <span className="text-slate-400 text-lg px-1">↓</span>
           )}
         </div>
       ))}

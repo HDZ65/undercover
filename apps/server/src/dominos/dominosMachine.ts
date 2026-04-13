@@ -155,17 +155,25 @@ export const dominosMachine = setup({
         board.leftEnd = tile.top;
         board.rightEnd = tile.bottom;
       } else if (event.end === 'left') {
+        // Placing on the left: the tile's RIGHT side (bottom in horizontal display) must match board.leftEnd
         const endVal = board.leftEnd;
-        const flipped = tile.bottom === endVal; // bottom matches → display normal (bottom faces the board end)
+        // If bottom already matches → no flip needed (bottom faces right, towards the board)
+        // If top matches → flip so top goes to right side
+        const flipped = tile.top === endVal;
         const bt: BoardTile = { tile, flipped };
         board.tiles.unshift(bt);
-        board.leftEnd = flipped ? tile.top : tile.bottom;
+        // New leftEnd = the side that faces outward (left)
+        board.leftEnd = flipped ? tile.bottom : tile.top;
       } else {
+        // Placing on the right: the tile's LEFT side (top in horizontal display) must match board.rightEnd
         const endVal = board.rightEnd;
-        const flipped = tile.top === endVal; // top matches → display flipped so top faces board end
+        // If top already matches → no flip needed (top faces left, towards the board)
+        // If bottom matches → flip so bottom goes to left side
+        const flipped = tile.bottom === endVal;
         const bt: BoardTile = { tile, flipped };
         board.tiles.push(bt);
-        board.rightEnd = flipped ? tile.bottom : tile.top;
+        // New rightEnd = the side that faces outward (right)
+        board.rightEnd = flipped ? tile.top : tile.bottom;
       }
 
       return {
