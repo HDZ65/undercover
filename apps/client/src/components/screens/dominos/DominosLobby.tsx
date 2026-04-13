@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import type { DominoTile, DominosPublicState, DominosPrivateState, BoardState } from '@undercover/shared'
 import { useDominosSocket } from './useDominosSocket'
@@ -242,10 +242,17 @@ function EndChooser({ board, tile, onChoose, onCancel }: {
   const canLeft = board.leftEnd === -1 || tile.top === board.leftEnd || tile.bottom === board.leftEnd
   const canRight = board.leftEnd === -1 || tile.top === board.rightEnd || tile.bottom === board.rightEnd
 
-  // Auto-choose if only one option
-  if (canLeft && !canRight) { onChoose('left'); return null }
-  if (canRight && !canLeft) { onChoose('right'); return null }
-  if (board.leftEnd === -1) { onChoose('left'); return null }
+  // Auto-choose if only one option (in useEffect to avoid calling during render)
+  useEffect(() => {
+    if (canLeft && !canRight) { onChoose('left'); return }
+    if (canRight && !canLeft) { onChoose('right'); return }
+    if (board.leftEnd === -1) { onChoose('left'); return }
+  }, [canLeft, canRight, board.leftEnd, onChoose])
+
+  // Don't render buttons if auto-choosing
+  if ((canLeft && !canRight) || (canRight && !canLeft) || board.leftEnd === -1) {
+    return null
+  }
 
   return (
     <motion.div
@@ -285,6 +292,12 @@ function GamePhase({ pub, priv, game }: {
   const isMyTurn = pub.currentPlayerId === priv.playerId
 
   const selectedTile = selectedTileId !== null ? priv.hand.find(t => t.id === selectedTileId) : null
+
+  const handleChooseEnd = useCallback((end: 'left' | 'right') => {
+    if (selectedTileId === null) return
+    game.placeTile(selectedTileId, end)
+    setSelectedTileId(null)
+  }, [selectedTileId, game])
 
   // Compute HP: my HP = 100% minus OPPONENT's total score percentage
   // If opponent has 0 points → my bar is full. If opponent reaches targetScore → I'm dead.
@@ -341,10 +354,7 @@ function GamePhase({ pub, priv, game }: {
         <EndChooser
           board={pub.board}
           tile={selectedTile}
-          onChoose={(end) => {
-            game.placeTile(selectedTile.id, end)
-            setSelectedTileId(null)
-          }}
+          onChoose={handleChooseEnd}
           onCancel={() => setSelectedTileId(null)}
         />
       )}
