@@ -12,9 +12,19 @@ const DOT_POSITIONS: Record<number, [number, number][]> = {
   6: [[0, 0], [0, 2], [1, 0], [1, 2], [2, 0], [2, 2]],
 }
 
+// Plato-inspired colors for each number
+const PIP_COLORS: Record<number, string> = {
+  1: 'bg-cyan-400',
+  2: 'bg-emerald-400',
+  3: 'bg-red-400',
+  4: 'bg-purple-400',
+  5: 'bg-amber-400',
+  6: 'bg-blue-500',
+}
+
 function PipHalf({ value, size }: { value: number; size: number }) {
   const dots = DOT_POSITIONS[value] ?? []
-  const dotSize = Math.max(3, size * 0.18)
+  const dotSize = Math.max(4, size * 0.22)
   const padding = size * 0.15
   const cellSize = (size - padding * 2) / 3
 
@@ -23,7 +33,7 @@ function PipHalf({ value, size }: { value: number; size: number }) {
       {dots.map(([row, col], i) => (
         <div
           key={i}
-          className="absolute rounded-full bg-slate-800 dark:bg-slate-200"
+          className={`absolute rounded-full shadow-[inset_0_1px_3px_rgba(0,0,0,0.5)] ${PIP_COLORS[value] || 'bg-slate-800'}`}
           style={{
             width: dotSize,
             height: dotSize,
@@ -51,46 +61,61 @@ export function DominoTileComponent({
   playable = false,
   selected = false,
   faceDown = false,
-  size = 40,
+  size = 44, // Slightly larger default size for better visibility
   horizontal = false,
   onClick,
 }: DominoTileProps) {
-  const w = horizontal ? size * 2 + 4 : size + 4
-  const h = horizontal ? size + 4 : size * 2 + 4
+  // Tile dimensions
+  const w = horizontal ? size * 2 + 2 : size + 2
+  const h = horizontal ? size + 2 : size * 2 + 2
 
   if (faceDown) {
     return (
       <div
-        className="rounded-lg bg-gradient-to-br from-blue-800 to-blue-950 border-2 border-blue-700 shadow-md"
+        className="rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-700 to-indigo-900 shadow-[0_4px_0_1px_rgba(30,58,138,1),0_8px_10px_rgba(0,0,0,0.3)] border-t border-blue-400/30"
         style={{ width: w, height: h }}
-      />
+      >
+        <div className="w-1/3 h-1/3 border-2 border-white/10 rounded-full" />
+      </div>
     )
+  }
+
+  // Base style configuration for different states
+  const baseStyle = horizontal ? 'flex-row' : 'flex-col'
+  const dividerStyle = horizontal
+    ? 'w-[2px] h-3/4 bg-slate-200 dark:bg-slate-700 mx-auto rounded-full shadow-inner'
+    : 'h-[2px] w-3/4 bg-slate-200 dark:bg-slate-700 mx-auto rounded-full shadow-inner'
+
+  let containerClasses = `
+    flex items-center justify-center rounded-xl transition-all duration-200 select-none
+    bg-gradient-to-b from-white to-slate-100 dark:from-slate-700 dark:to-slate-800
+    border border-slate-200 dark:border-slate-600
+  `
+
+  if (selected) {
+    containerClasses += ' ring-4 ring-amber-400 shadow-[0_2px_0_rgba(251,191,36,1),0_8px_15px_rgba(0,0,0,0.2)] -translate-y-2'
+  } else if (playable) {
+    containerClasses += ' cursor-pointer hover:shadow-[0_6px_0_rgba(203,213,225,1),0_10px_20px_rgba(0,0,0,0.15)] dark:hover:shadow-[0_6px_0_rgba(51,65,85,1),0_10px_20px_rgba(0,0,0,0.4)] hover:-translate-y-1 shadow-[0_4px_0_rgba(203,213,225,1),0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_0_rgba(51,65,85,1),0_4px_10px_rgba(0,0,0,0.3)]'
+  } else {
+    containerClasses += ' opacity-80 shadow-[0_2px_0_rgba(203,213,225,1)] dark:shadow-[0_2px_0_rgba(51,65,85,1)]'
   }
 
   return (
     <motion.div
-      onClick={onClick}
-      whileHover={playable ? { scale: 1.08, y: -4 } : undefined}
-      whileTap={playable ? { scale: 0.95 } : undefined}
-      className={`
-        rounded-lg border-2 shadow-md cursor-${playable ? 'pointer' : 'default'} transition-colors
-        ${selected
-          ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 ring-2 ring-amber-400/50'
-          : playable
-            ? 'border-emerald-400 bg-white dark:bg-slate-700 hover:border-emerald-300'
-            : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 opacity-70'
-        }
-      `}
+      onClick={playable ? onClick : undefined}
+      whileTap={playable ? { y: 2, scale: 0.96 } : undefined}
+      className={containerClasses}
       style={{ width: w, height: h }}
+      layoutId={`tile-${tile.id}`} // Fluid layout animations!
     >
-      <div className={`flex ${horizontal ? 'flex-row' : 'flex-col'} items-center`}>
+      <div className={`flex ${baseStyle} items-center justify-center w-full h-full p-0.5`}>
         <PipHalf value={horizontal ? tile.top : tile.top} size={size} />
-        <div className={horizontal
-          ? 'w-px h-full bg-slate-300 dark:bg-slate-500'
-          : 'h-px w-full bg-slate-300 dark:bg-slate-500'
-        } />
+        <div className={`flex items-center justify-center ${horizontal ? 'h-full w-2' : 'w-full h-2'}`}>
+           <div className={dividerStyle} />
+        </div>
         <PipHalf value={horizontal ? tile.bottom : tile.bottom} size={size} />
       </div>
     </motion.div>
   )
 }
+

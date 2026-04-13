@@ -156,15 +156,16 @@ function LobbyPhase({ pub, priv, onStart, onSetTarget, onLeave }: {
 function BoardView({ board }: { board: BoardState }) {
   if (board.tiles.length === 0) {
     return (
-      <div className="flex items-center justify-center h-32 text-slate-400 dark:text-slate-500 italic text-lg">
+      <div className="flex flex-col items-center justify-center h-full text-slate-400/60 dark:text-slate-500/60 italic text-lg opacity-70">
+        <div className="text-4xl mb-4">🀱</div>
         Plateau vide — posez le premier domino !
       </div>
     )
   }
 
   // Each horizontal tile is ~60px wide. Calculate tiles per row based on container.
-  const tileW = 62 // approx width of a horizontal tile at size=28
-  const maxPerRow = Math.max(4, Math.floor((typeof window !== 'undefined' ? window.innerWidth - 40 : 800) / tileW))
+  const tileW = 66 // approx width of a horizontal tile at new larger sizes
+  const maxPerRow = Math.max(4, Math.floor((typeof window !== 'undefined' ? window.innerWidth - 60 : 800) / tileW))
 
   // Split tiles into rows (snake: even rows L→R, odd rows R→L visually)
   const rows: (typeof board.tiles[number])[][] = []
@@ -174,11 +175,14 @@ function BoardView({ board }: { board: BoardState }) {
   }
 
   return (
-    <div className="py-2 px-2 space-y-1 w-full">
+    <div className="py-6 px-4 space-y-3 w-full h-full flex flex-col justify-center bg-slate-800/80 dark:bg-slate-900/80 shadow-[inset_0_10px_30px_rgba(0,0,0,0.4)] rounded-3xl relative overflow-hidden border border-slate-700/50">
+      {/* Subtle table texture overlay */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '16px 16px' }} />
+      
       {rows.map((row, rowIdx) => (
         <div
           key={rowIdx}
-          className={`flex items-center justify-center gap-0.5 ${rowIdx % 2 === 1 ? 'flex-row-reverse' : ''}`}
+          className={`flex items-center justify-center gap-1 z-10 ${rowIdx % 2 === 1 ? 'flex-row-reverse' : ''}`}
         >
           {row.map((bt, i) => {
             // flipped controls which pip faces which direction on the board
@@ -189,9 +193,9 @@ function BoardView({ board }: { board: BoardState }) {
             return (
               <motion.div
                 key={`${bt.tile.id}-${rowIdx}-${i}`}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0, y: 20, scale: 0.8 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
               >
                 <DominoTileComponent tile={displayTile} size={28} horizontal />
               </motion.div>
@@ -199,7 +203,9 @@ function BoardView({ board }: { board: BoardState }) {
           })}
           {/* Arrow indicator for row continuation */}
           {rowIdx < rows.length - 1 && (
-            <span className="text-slate-400 text-lg px-1">↓</span>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-slate-500 text-xl px-1">
+              {rowIdx % 2 === 0 ? '↘' : '↙'}
+            </motion.div>
           )}
         </div>
       ))}
@@ -216,7 +222,7 @@ function PlayerHand({ hand, playableIds, onSelectTile, selectedTileId }: {
   selectedTileId: number | null
 }) {
   return (
-    <div className="flex flex-wrap gap-2 justify-center py-2">
+    <div className="flex flex-wrap gap-3 justify-center py-4 px-2">
       {hand.map(tile => (
         <DominoTileComponent
           key={tile.id}
@@ -224,7 +230,7 @@ function PlayerHand({ hand, playableIds, onSelectTile, selectedTileId }: {
           playable={playableIds.includes(tile.id)}
           selected={selectedTileId === tile.id}
           onClick={() => playableIds.includes(tile.id) && onSelectTile(tile.id)}
-          size={36}
+          size={40}
         />
       ))}
     </div>
@@ -256,26 +262,32 @@ function EndChooser({ board, tile, onChoose, onCancel }: {
 
   return (
     <motion.div
-      className="flex gap-3 justify-center"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-4 bg-slate-900/95 backdrop-blur-md p-6 rounded-3xl shadow-2xl border border-slate-700 w-[90%] max-w-sm"
+      initial={{ opacity: 0, scale: 0.9, y: '-45%' }}
+      animate={{ opacity: 1, scale: 1, y: '-50%' }}
+      exit={{ opacity: 0, scale: 0.9 }}
     >
-      <button
-        onClick={() => onChoose('left')}
-        disabled={!canLeft}
-        className="px-4 py-2 bg-blue-500 text-white font-bold rounded-lg disabled:opacity-30 hover:bg-blue-600 active:scale-95 transition-all"
-      >
-        ← Gauche ({board.leftEnd})
-      </button>
-      <button onClick={onCancel} className="px-3 py-2 text-slate-400 hover:text-slate-600">
+      <div className="text-white font-bold text-lg mb-2">Où placer la tuile ?</div>
+      <div className="flex justify-between w-full gap-4">
+        <button
+          onClick={() => onChoose('left')}
+          disabled={!canLeft}
+          className="flex-1 py-4 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-blue-600 to-blue-800 text-white font-bold rounded-2xl disabled:opacity-20 hover:ring-4 hover:ring-blue-400 active:scale-95 transition-all shadow-lg"
+        >
+          <span className="text-2xl">←</span>
+          <span>Côté {board.leftEnd}</span>
+        </button>
+        <button
+          onClick={() => onChoose('right')}
+          disabled={!canRight}
+          className="flex-1 py-4 flex flex-col items-center justify-center gap-2 bg-gradient-to-b from-purple-600 to-purple-800 text-white font-bold rounded-2xl disabled:opacity-20 hover:ring-4 hover:ring-purple-400 active:scale-95 transition-all shadow-lg"
+        >
+          <span className="text-2xl">→</span>
+          <span>Côté {board.rightEnd}</span>
+        </button>
+      </div>
+      <button onClick={onCancel} className="mt-2 text-slate-400 hover:text-white font-medium transition-colors">
         Annuler
-      </button>
-      <button
-        onClick={() => onChoose('right')}
-        disabled={!canRight}
-        className="px-4 py-2 bg-purple-500 text-white font-bold rounded-lg disabled:opacity-30 hover:bg-purple-600 active:scale-95 transition-all"
-      >
-        Droite ({board.rightEnd}) →
       </button>
     </motion.div>
   )
@@ -300,7 +312,6 @@ function GamePhase({ pub, priv, game }: {
   }, [selectedTileId, game])
 
   // Compute HP: my HP = 100% minus OPPONENT's total score percentage
-  // If opponent has 0 points → my bar is full. If opponent reaches targetScore → I'm dead.
   const getHpForPlayer = (playerId: string) => {
     const opponents = pub.players.filter(p => p.id !== playerId)
     const maxOpponentScore = Math.max(0, ...opponents.map(p => p.totalScore))
@@ -308,99 +319,148 @@ function GamePhase({ pub, priv, game }: {
   }
 
   return (
-    <div className="w-full h-full flex flex-col gap-3 px-4 py-2">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-500">Manche {pub.round} • Score cible : {pub.targetScore}</span>
-        <span className="text-sm text-slate-500">Pioche : {pub.boneyardCount}</span>
-      </div>
-
-      {/* Characters bar */}
-      <div className="flex justify-around items-end px-6 py-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
-        {pub.players.map(p => {
-          const hp = getHpForPlayer(p.id)
-          const isCurrent = pub.currentPlayerId === p.id
-          return (
-            <div key={p.id} className={`relative ${isCurrent ? 'ring-2 ring-blue-400 rounded-xl p-2' : 'p-2'}`}>
-              <PixelCharacter
-                characterIndex={p.characterIndex}
-                hp={hp}
-                name={p.name}
-                score={p.totalScore}
-                size={5}
-              />
-              <div className="text-center text-xs text-slate-400 mt-1">{p.tileCount} tuiles</div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Board */}
-      <div className="flex-1 bg-blue-800/10 dark:bg-blue-900/20 rounded-2xl border border-blue-700/20 min-h-[100px] flex items-center overflow-hidden">
-        <BoardView board={pub.board} />
-      </div>
-
-      {/* Turn indicator */}
-      <div className="text-center">
-        {isMyTurn ? (
-          <span className="text-blue-600 dark:text-blue-400 font-bold">C'est votre tour !</span>
-        ) : (
-          <span className="text-slate-500">Au tour de {pub.players.find(p => p.id === pub.currentPlayerId)?.name ?? '...'}</span>
-        )}
-      </div>
-
-      {/* End chooser */}
-      {selectedTile && isMyTurn && (
-        <EndChooser
-          board={pub.board}
-          tile={selectedTile}
-          onChoose={handleChooseEnd}
-          onCancel={() => setSelectedTileId(null)}
-        />
-      )}
-
-      {/* Your hand */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-3">
-        <p className="text-xs text-slate-400 mb-2 text-center">Votre main ({priv.hand.length} tuiles)</p>
-        <PlayerHand
-          hand={priv.hand}
-          playableIds={isMyTurn ? priv.playableTileIds : []}
-          onSelectTile={id => setSelectedTileId(id === selectedTileId ? null : id)}
-          selectedTileId={selectedTileId}
-        />
-      </div>
-
-      {/* Action buttons */}
-      {isMyTurn && (
-        <div className="flex gap-3 justify-center">
-          {priv.canDraw && (
-            <button
-              onClick={game.drawTile}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-transform"
-            >
-              Piocher
-            </button>
-          )}
-          {priv.canPass && (
-            <button
-              onClick={game.pass}
-              className="px-6 py-3 bg-gradient-to-r from-slate-500 to-slate-600 text-white font-bold rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-transform"
-            >
-              Passer
-            </button>
-          )}
+    <div className="w-full h-full flex flex-col relative bg-[#0f172a] text-slate-200">
+      {/* Header Info */}
+      <div className="flex items-center justify-between px-6 py-3 bg-slate-900 shadow-md z-10 border-b border-slate-700/50">
+        <div className="flex flex-col">
+          <span className="text-xs font-bold text-cyan-400 uppercase tracking-wider">Manche {pub.round}</span>
+          <span className="text-sm font-medium text-slate-300">Objectif : {pub.targetScore} pts</span>
         </div>
-      )}
+        <div className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-1 border border-slate-700">
+          <span className="text-xs text-slate-400 font-medium">Pioche</span>
+          <span className="font-bold text-white bg-slate-700 rounded px-2 py-0.5 shadow-inner">{pub.boneyardCount}</span>
+        </div>
+      </div>
 
-      {/* Last action */}
-      {pub.lastAction && (
-        <p className="text-center text-xs text-slate-400">
-          {pub.players.find(p => p.id === pub.lastAction?.playerId)?.name}
-          {pub.lastAction.action === 'placed' && ' a posé un domino'}
-          {pub.lastAction.action === 'drew' && ' a pioché'}
-          {pub.lastAction.action === 'passed' && ' a passé'}
-        </p>
-      )}
+      {/* Board & Characters Area */}
+      <div className="flex-1 flex flex-col p-4 relative overflow-hidden">
+        {/* Opponents/Players HUD */}
+        <div className="flex justify-between items-start mb-2 z-10">
+          {pub.players.map(p => {
+            const hp = getHpForPlayer(p.id)
+            const isCurrent = pub.currentPlayerId === p.id
+            const isMe = p.id === priv.playerId
+            return (
+              <motion.div 
+                key={p.id} 
+                className={`relative flex items-center gap-3 bg-slate-800/80 backdrop-blur-md rounded-2xl p-2 pr-4 border shadow-lg transition-all ${
+                  isCurrent ? 'border-amber-400 ring-2 ring-amber-400/20 shadow-[0_0_15px_rgba(251,191,36,0.3)]' : 'border-slate-700/50'
+                }`}
+                animate={isCurrent ? { y: [0, -4, 0] } : {}}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <div className="bg-slate-900 rounded-xl p-1 relative shadow-inner">
+                  <PixelCharacter
+                    characterIndex={p.characterIndex}
+                    hp={hp}
+                    name={""} // name shown outside
+                    score={p.totalScore}
+                    size={3}
+                  />
+                  {/* Dominos count badge */}
+                  <div className="absolute -bottom-2 -right-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-[11px] font-bold w-6 h-6 rounded-full flex items-center justify-center border border-slate-800 shadow-sm">
+                    {p.tileCount}
+                  </div>
+                </div>
+                <div className="flex flex-col">
+                  <span className={`text-sm font-bold truncate max-w-[80px] ${isMe ? 'text-amber-400' : 'text-slate-100'}`}>
+                    {isMe ? 'Vous' : p.name}
+                  </span>
+                  {isCurrent && <span className="text-[10px] text-amber-500 font-black uppercase tracking-wider">Joue</span>}
+                </div>
+              </motion.div>
+            )
+          })}
+        </div>
+
+        {/* The Table View */}
+        <div className="flex-1 w-full min-h-[150px] flex items-center justify-center relative">
+          <BoardView board={pub.board} />
+        </div>
+
+        {/* Turn indicator & Action Text */}
+        <div className="h-8 flex justify-center items-center mt-3 z-10">
+          <AnimatePresence mode="wait">
+            {pub.lastAction ? (
+               <motion.div
+                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                 animate={{ opacity: 1, y: 0, scale: 1 }}
+                 exit={{ opacity: 0, scale: 0.95 }}
+                 key={pub.lastAction.playerId + pub.lastAction.action + pub.round}
+                 className="flex items-center gap-2 bg-slate-800/80 px-4 py-1.5 rounded-full border border-slate-700 backdrop-blur-sm shadow-md"
+               >
+                 <span className="text-sm font-bold text-slate-300">
+                   {pub.players.find(p => p.id === pub.lastAction?.playerId)?.name}
+                 </span>
+                 <span className="text-sm text-slate-400">
+                   {pub.lastAction.action === 'placed' && 'a posé une tuile'}
+                   {pub.lastAction.action === 'drew' && 'a pioché'}
+                   {pub.lastAction.action === 'passed' && 'a passé son tour'}
+                 </span>
+               </motion.div>
+            ) : (
+               <motion.span 
+                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                 className="text-slate-500/70 text-sm italic bg-slate-800/30 px-4 py-1 rounded-full"
+               >
+                 Que le combat commence !
+               </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Your Hand (Dock) */}
+      <div className="bg-slate-900 rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border-t border-slate-700/80 p-4 pb-8 z-20">
+        <div className="flex justify-between items-center mb-3 px-2">
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 rounded-full shadow-sm ${isMyTurn ? 'bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]' : 'bg-slate-600'}`} />
+            <span className={`text-sm font-black tracking-wide ${isMyTurn ? 'text-amber-400' : 'text-slate-400'}`}>
+              {isMyTurn ? "C'EST À VOUS !" : "EN ATTENTE..."}
+            </span>
+          </div>
+          
+          <div className="flex gap-2">
+            {isMyTurn && priv.canDraw && (
+              <button
+                onClick={game.drawTile}
+                className="px-4 py-1.5 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 font-bold text-sm rounded-xl transition-colors shadow-sm"
+              >
+                Piocher (+1)
+              </button>
+            )}
+            {isMyTurn && priv.canPass && (
+              <button
+                onClick={game.pass}
+                className="px-4 py-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700 font-bold text-sm rounded-xl transition-all shadow-sm"
+              >
+                Passer
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-[#1e293b]/50 rounded-2xl min-h-[140px] flex items-center justify-center border border-slate-700/50 shadow-inner overflow-x-auto w-full">
+           <PlayerHand
+             hand={priv.hand}
+             playableIds={isMyTurn ? priv.playableTileIds : []}
+             onSelectTile={id => setSelectedTileId(id === selectedTileId ? null : id)}
+             selectedTileId={selectedTileId}
+           />
+        </div>
+      </div>
+
+      {/* Overlays */}
+      <AnimatePresence>
+        {selectedTile && isMyTurn && (
+          <EndChooser
+            board={pub.board}
+            tile={selectedTile}
+            onChoose={handleChooseEnd}
+            onCancel={() => setSelectedTileId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
