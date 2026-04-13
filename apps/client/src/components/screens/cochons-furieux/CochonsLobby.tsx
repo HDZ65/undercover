@@ -358,7 +358,7 @@ function BuildPhase({ pub, priv, game }: {
   }
 
   return (
-    <motion.div className="w-full max-w-2xl mx-auto space-y-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+    <motion.div className="w-full flex-1 flex flex-col gap-3 px-4 py-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Timer */}
       <div className="text-center">
         <span className={`text-3xl font-black ${game.buildTimeRemaining <= 10 ? 'text-red-500' : game.buildTimeRemaining <= 30 ? 'text-amber-500' : 'text-emerald-500'}`}>
@@ -445,9 +445,9 @@ function BattlePhase({ pub, priv, game }: {
   const impactResult = lastShot?.result ?? null
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-4">
+    <div className="w-full flex-1 flex flex-col gap-3 px-4 py-3">
       {/* Header */}
-      <div className="flex items-center justify-between px-2">
+      <div className="flex items-center justify-between">
         <div className="text-sm">
           <span className="font-bold text-slate-700 dark:text-slate-300">{myPlayer?.name}</span>
           <span className="text-emerald-500 ml-1">🐷×{myPlayer?.pigsAlive ?? 0}</span>
@@ -571,8 +571,10 @@ export function CochonsLobby({ onBack }: { onBack: () => void }) {
     )
   }
 
+  const isPlayPhase = pub.phase === 'buildPhase' || pub.phase === 'battle' || pub.phase === 'resolving'
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-emerald-50 to-sky-100 dark:from-slate-900 dark:to-emerald-950">
+    <div className={`${isPlayPhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto' : 'min-h-screen flex flex-col items-center justify-center p-4'} bg-gradient-to-b from-emerald-50 to-sky-100 dark:from-slate-900 dark:to-emerald-950`}>
       <AnimatePresence mode="wait">
         {pub.phase === 'lobby' && <LobbyPhase key="lobby" pub={pub} priv={priv} game={game} />}
         {pub.phase === 'buildPhase' && <BuildPhase key="build" pub={pub} priv={priv} game={game} />}
