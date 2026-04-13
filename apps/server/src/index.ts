@@ -31,6 +31,11 @@ import type {
   MojoServerToClientEvents,
 } from '@undercover/shared';
 import { MojoRoomManager } from './mojo/roomManager.js';
+import type {
+  DominosClientToServerEvents,
+  DominosServerToClientEvents,
+} from '@undercover/shared';
+import { DominosRoomManager } from './dominos/roomManager.js';
 
 const app = express();
 app.use(cors());
@@ -70,6 +75,8 @@ const tamalouNamespace = io.of('/tamalou') as Namespace<TamalouClientToServerEve
 const tamalouRoomManager = new TamalouRoomManager(tamalouNamespace);
 const mojoNamespace = io.of('/mojo') as Namespace<MojoClientToServerEvents, MojoServerToClientEvents>;
 const mojoRoomManager = new MojoRoomManager(mojoNamespace);
+const dominosNamespace = io.of('/dominos') as Namespace<DominosClientToServerEvents, DominosServerToClientEvents>;
+const dominosRoomManager = new DominosRoomManager(dominosNamespace);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
@@ -474,6 +481,22 @@ mojoNamespace.on('connection', (socket) => {
   socket.on('game:nextRound', () => mojoRoomManager.handleNextRound(socket));
   socket.on('game:resetGame', () => mojoRoomManager.handleResetGame(socket));
   socket.on('disconnect', () => mojoRoomManager.handleDisconnect(socket));
+});
+
+// ── Dominos namespace ──
+dominosNamespace.on('connection', (socket) => {
+  console.log(`[Dominos] Connected: ${socket.id}`);
+  socket.on('room:create', (data) => dominosRoomManager.createRoom(socket, data.playerName));
+  socket.on('room:join', (data) => dominosRoomManager.joinRoom(socket, data.roomCode, data.playerName, data.playerToken));
+  socket.on('room:leave', () => dominosRoomManager.leaveRoom(socket));
+  socket.on('game:startGame', () => dominosRoomManager.handleStartGame(socket));
+  socket.on('game:setTargetScore', (data) => dominosRoomManager.handleSetTargetScore(socket, data.targetScore));
+  socket.on('game:placeTile', (data) => dominosRoomManager.handlePlaceTile(socket, data.tileId, data.end));
+  socket.on('game:drawTile', () => dominosRoomManager.handleDrawTile(socket));
+  socket.on('game:pass', () => dominosRoomManager.handlePass(socket));
+  socket.on('game:nextRound', () => dominosRoomManager.handleNextRound(socket));
+  socket.on('game:resetGame', () => dominosRoomManager.handleResetGame(socket));
+  socket.on('disconnect', () => dominosRoomManager.handleDisconnect(socket));
 });
 
 // ── Global error handlers — prevent silent crashes ──

@@ -66,6 +66,14 @@ const GAMES: GameOption[] = [
     players: '2-6 joueurs',
     available: true,
   },
+  {
+    id: 'dominos',
+    title: 'Dominos',
+    description: 'Posez vos dominos, piochez si bloques, et terrassez vos adversaires en combat pixel-art !',
+    gradient: 'from-stone-600 to-amber-700',
+    players: '2-4 joueurs',
+    available: true,
+  },
 ]
 
 interface GameMenuProps {

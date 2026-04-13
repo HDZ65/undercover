@@ -18,6 +18,7 @@ import { EcoWarLobby } from './components/screens/economic-war'
 import { CodenamesLobby } from './components/screens/codenames'
 import { TamalouLobby } from './components/screens/tamalou'
 import { MojoLobby } from './components/screens/mojo'
+import { DominosLobby } from './components/screens/dominos'
 
 import { ConnectionStatusOverlay } from './components/ui/ConnectionStatusOverlay'
 import { useKeepAlive } from './hooks/useKeepAlive'
@@ -100,6 +101,10 @@ function App() {
 
     if (selectedGame === 'mojo') {
       return <MojoLobby onBack={handleBackToMenu} />
+    }
+
+    if (selectedGame === 'dominos') {
+      return <DominosLobby onBack={handleBackToMenu} />
     }
 
     return <GameMenu onSelectGame={setSelectedGame} />

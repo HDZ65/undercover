@@ -5,3 +5,4 @@ export * from './economic-war';
 export * from './codenames';
 export * from './tamalou';
 export * from './mojo';
+export * from './dominos';
