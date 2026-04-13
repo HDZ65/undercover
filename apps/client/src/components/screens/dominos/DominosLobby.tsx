@@ -313,7 +313,7 @@ function GamePhase({ pub, priv, game }: {
   }, [selectedTileId, game])
 
   useEffect(() => {
-    let timeout: NodeJS.Timeout
+    let timeout: ReturnType<typeof setTimeout>
     if (isMyTurn && priv.playableTileIds.length === 0 && priv.canDraw) {
       setIsAutoDrawing(true)
       timeout = setTimeout(() => {
