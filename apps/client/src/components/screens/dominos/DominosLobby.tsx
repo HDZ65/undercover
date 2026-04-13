@@ -446,21 +446,21 @@ export function DominosLobby({ onBack }: { onBack: () => void }) {
   // No room — show landing
   if (!pub || !priv) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-stone-100 to-amber-50 dark:from-slate-900 dark:to-slate-950">
+      <>
         <Landing
           onCreateRoom={game.createRoom}
           onJoinRoom={game.joinRoom}
         />
         <button onClick={onBack} className="mt-8 text-sm text-slate-400 hover:text-slate-600">← Retour au menu</button>
         {game.error && <p className="mt-4 text-red-500 font-medium">{game.error}</p>}
-      </div>
+      </>
     )
   }
 
   const isGamePhase = pub.phase === 'playerTurn'
 
   return (
-    <div className={`${isGamePhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto' : 'min-h-screen flex flex-col items-center justify-center p-4'} bg-gradient-to-b from-stone-100 to-amber-50 dark:from-slate-900 dark:to-slate-950`}>
+    <div className={isGamePhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto bg-gradient-to-b from-stone-100 to-amber-50 dark:from-slate-900 dark:to-slate-950' : 'w-full'}>
       <AnimatePresence mode="wait">
         {pub.phase === 'lobby' && (
           <LobbyPhase

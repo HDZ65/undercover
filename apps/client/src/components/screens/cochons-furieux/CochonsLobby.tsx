@@ -563,18 +563,18 @@ export function CochonsLobby({ onBack }: { onBack: () => void }) {
 
   if (!pub || !priv) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-emerald-50 to-sky-100 dark:from-slate-900 dark:to-emerald-950">
+      <>
         <Landing onCreateRoom={game.createRoom} onJoinRoom={game.joinRoom} />
         <button onClick={onBack} className="mt-8 text-sm text-slate-400 hover:text-slate-600">← Retour au menu</button>
         {game.error && <p className="mt-4 text-red-500 font-medium">{game.error}</p>}
-      </div>
+      </>
     )
   }
 
   const isPlayPhase = pub.phase === 'buildPhase' || pub.phase === 'battle' || pub.phase === 'resolving'
 
   return (
-    <div className={`${isPlayPhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto' : 'min-h-screen flex flex-col items-center justify-center p-4'} bg-gradient-to-b from-emerald-50 to-sky-100 dark:from-slate-900 dark:to-emerald-950`}>
+    <div className={isPlayPhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto bg-gradient-to-b from-emerald-50 to-sky-100 dark:from-slate-900 dark:to-emerald-950' : 'w-full'}>
       <AnimatePresence mode="wait">
         {pub.phase === 'lobby' && <LobbyPhase key="lobby" pub={pub} priv={priv} game={game} />}
         {pub.phase === 'buildPhase' && <BuildPhase key="build" pub={pub} priv={priv} game={game} />}
