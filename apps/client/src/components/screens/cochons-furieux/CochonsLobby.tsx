@@ -13,16 +13,17 @@ import type {
 import { GRID_COLS, GRID_ROWS, cellIndex, WEAPON_SPECS, CASTLE_TEMPLATES, TOTAL_TURNS, sideRange } from '@undercover/shared'
 import { useCochonsSocket } from './useCochonsSocket'
 
-// ─── Cell colors ─────────────────────────────────────────────────
+// ─── Block styles (Angry Birds look) ─────────────────────────────
 
-const CELL_BG: Record<CellType, string> = {
-  empty: '', wood: 'bg-amber-600', stone: 'bg-slate-400', steel: 'bg-blue-400', pig: 'bg-green-400',
-}
-const CELL_BORDER: Record<CellType, string> = {
-  empty: '', wood: 'border-amber-800', stone: 'border-slate-500', steel: 'border-blue-600', pig: 'border-green-600',
+const BLOCK_STYLE: Record<CellType, { bg: string; border: string; shadow: string }> = {
+  empty:  { bg: '', border: '', shadow: '' },
+  wood:   { bg: 'bg-amber-500', border: 'border-amber-700', shadow: 'shadow-[inset_0_-2px_0_rgba(120,53,15,0.5),inset_0_2px_0_rgba(255,220,150,0.4)]' },
+  stone:  { bg: 'bg-slate-400', border: 'border-slate-600', shadow: 'shadow-[inset_0_-2px_0_rgba(51,65,85,0.5),inset_0_2px_0_rgba(203,213,225,0.5)]' },
+  steel:  { bg: 'bg-sky-300', border: 'border-sky-500', shadow: 'shadow-[inset_0_-2px_0_rgba(14,116,144,0.5),inset_0_2px_0_rgba(186,230,253,0.6)]' },
+  pig:    { bg: 'bg-lime-400', border: 'border-lime-600', shadow: 'shadow-[inset_0_-3px_0_rgba(63,98,18,0.4)]' },
 }
 
-// ─── Grid Renderer ───────────────────────────────────────────────
+// ─── Grid Renderer (Angry Birds style) ───────────────────────────
 
 function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, trajectory }: {
   grid: Grid
@@ -32,59 +33,111 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
   impactResult?: ShotResult | null
   trajectory?: TrajectoryPoint[] | null
 }) {
-  const cellSize = Math.min(18, Math.floor((typeof window !== 'undefined' ? window.innerWidth - 32 : 700) / GRID_COLS))
-  const gridW = GRID_COLS * cellSize
-  const gridH = GRID_ROWS * cellSize
+  // Responsive cell size — fill the viewport width
+  const cs = Math.max(12, Math.floor((typeof window !== 'undefined' ? window.innerWidth - 16 : 800) / GRID_COLS))
+  const W = GRID_COLS * cs
+  const H = GRID_ROWS * cs
+  const groundH = Math.round(cs * 1.5)
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-slate-600 shadow-inner" style={{ width: gridW, height: gridH }}>
-      {/* Sky background */}
-      <div className="absolute inset-0 bg-gradient-to-b from-sky-300 to-sky-100 dark:from-sky-900 dark:to-slate-800" />
+    <div className="relative w-full overflow-hidden select-none" style={{ height: H + groundH }}>
 
-      {/* Ground */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-amber-800 to-amber-700" style={{ height: cellSize * 0.5 }} />
+      {/* ── Sky ── */}
+      <div className="absolute inset-0" style={{ height: H }}>
+        {/* Gradient sky */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#63cdff] via-[#8edcff] to-[#c5eaff]" />
+        {/* Clouds */}
+        <div className="absolute top-[8%] left-[5%] w-24 h-8 bg-white/60 rounded-full blur-sm" />
+        <div className="absolute top-[6%] left-[8%] w-16 h-6 bg-white/70 rounded-full blur-sm" />
+        <div className="absolute top-[12%] left-[30%] w-32 h-10 bg-white/50 rounded-full blur-sm" />
+        <div className="absolute top-[5%] left-[33%] w-20 h-7 bg-white/60 rounded-full blur-sm" />
+        <div className="absolute top-[15%] right-[15%] w-28 h-9 bg-white/55 rounded-full blur-sm" />
+        <div className="absolute top-[10%] right-[18%] w-18 h-6 bg-white/65 rounded-full blur-sm" />
+        <div className="absolute top-[20%] right-[40%] w-20 h-7 bg-white/45 rounded-full blur-sm" />
+        {/* Distant hills */}
+        <div className="absolute bottom-0 left-0 right-0 h-[30%] bg-gradient-to-t from-[#7ab648]/30 to-transparent" />
+      </div>
 
-      {/* Center divider */}
-      <div className="absolute top-0 bottom-0 border-l-2 border-dashed border-slate-400/40" style={{ left: gridW / 2 }} />
+      {/* ── Ground ── */}
+      <div className="absolute left-0 right-0" style={{ top: H, height: groundH }}>
+        <div className="w-full h-full bg-gradient-to-b from-[#5a8a2a] via-[#4a7a24] to-[#3d6620]" />
+        {/* Grass top edge */}
+        <div className="absolute top-0 left-0 right-0 h-[4px] bg-[#7ab648]" />
+      </div>
 
-      {/* Side labels */}
-      <div className="absolute top-1 left-2 text-[9px] font-bold text-slate-500/50">GAUCHE</div>
-      <div className="absolute top-1 right-2 text-[9px] font-bold text-slate-500/50">DROITE</div>
+      {/* ── Center divider ── */}
+      <div className="absolute top-0 border-l-2 border-dashed border-white/20 z-10" style={{ left: W / 2, height: H }} />
 
-      {/* Editable zone highlight during build */}
+      {/* ── Build zone highlight ── */}
       {editMode && mySide && (
-        <div
-          className="absolute top-0 bottom-0 bg-emerald-400/10 border-2 border-emerald-400/30 rounded"
-          style={{
-            left: mySide === 'left' ? 0 : gridW / 2,
-            width: gridW / 2,
-          }}
-        />
+        <div className="absolute top-0 z-10 border-2 border-emerald-400/40 bg-emerald-400/5 rounded"
+          style={{ left: mySide === 'left' ? 0 : W / 2, width: W / 2, height: H }} />
       )}
 
-      {/* Cells */}
+      {/* ── Blocks & Pigs ── */}
       {grid.map((cell, idx) => {
         if (cell.type === 'empty') return null
         const col = idx % GRID_COLS
         const row = Math.floor(idx / GRID_COLS)
-        const visualTop = (GRID_ROWS - 1 - row) * cellSize
+        const x = col * cs
+        const y = (GRID_ROWS - 1 - row) * cs
+        const style = BLOCK_STYLE[cell.type]
         const isDestroyed = impactResult?.destroyedCells.some(d => d.col === col && d.row === row)
+
+        if (cell.type === 'pig') {
+          return (
+            <motion.div
+              key={`${col}-${row}`}
+              className="absolute flex items-center justify-center cursor-pointer"
+              style={{ left: x, top: y, width: cs, height: cs }}
+              onClick={() => onCellClick?.(col, row)}
+              animate={isDestroyed ? { scale: 0, opacity: 0, rotate: 180 } : { scale: 1, opacity: 1 }}
+              transition={{ duration: 0.4 }}
+            >
+              {/* Pig body */}
+              <div className={`w-[90%] h-[90%] rounded-full ${style.bg} ${style.border} border-2 ${style.shadow} flex items-center justify-center relative`}>
+                {/* Eyes */}
+                <div className="absolute top-[20%] left-[22%] w-[20%] h-[24%] bg-white rounded-full flex items-center justify-center">
+                  <div className="w-[55%] h-[55%] bg-black rounded-full" />
+                </div>
+                <div className="absolute top-[20%] right-[22%] w-[20%] h-[24%] bg-white rounded-full flex items-center justify-center">
+                  <div className="w-[55%] h-[55%] bg-black rounded-full" />
+                </div>
+                {/* Snout */}
+                <div className="absolute bottom-[18%] left-1/2 -translate-x-1/2 w-[40%] h-[28%] bg-lime-300 rounded-full border border-lime-600 flex items-center justify-center gap-[2px]">
+                  <div className="w-[18%] h-[30%] bg-lime-600 rounded-full" />
+                  <div className="w-[18%] h-[30%] bg-lime-600 rounded-full" />
+                </div>
+              </div>
+            </motion.div>
+          )
+        }
 
         return (
           <motion.div
-            key={`${col}-${row}-${cell.type}`}
-            className={`absolute ${CELL_BG[cell.type]} ${CELL_BORDER[cell.type]} border rounded-[2px]`}
-            style={{ left: col * cellSize, top: visualTop, width: cellSize - 1, height: cellSize - 1 }}
+            key={`${col}-${row}`}
+            className={`absolute ${style.bg} ${style.border} border ${style.shadow} rounded-sm cursor-pointer`}
+            style={{ left: x + 0.5, top: y + 0.5, width: cs - 1, height: cs - 1 }}
             onClick={() => onCellClick?.(col, row)}
-            animate={isDestroyed ? { scale: 0, opacity: 0 } : { scale: 1, opacity: 1 }}
+            animate={isDestroyed ? { scale: 0, opacity: 0, y: 20 } : { scale: 1, opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            {cell.type === 'pig' && <span className="flex items-center justify-center w-full h-full text-[10px]">🐷</span>}
+            {/* Wood grain texture */}
+            {cell.type === 'wood' && (
+              <div className="w-full h-full opacity-30 overflow-hidden">
+                <div className="w-full h-[2px] bg-amber-800/40 mt-[30%]" />
+                <div className="w-full h-[1px] bg-amber-800/30 mt-[25%]" />
+              </div>
+            )}
+            {/* Steel shine */}
+            {cell.type === 'steel' && (
+              <div className="absolute top-[10%] left-[10%] w-[30%] h-[30%] bg-white/30 rounded-full blur-[1px]" />
+            )}
           </motion.div>
         )
       })}
 
-      {/* Clickable empty cells during build */}
+      {/* ── Build: clickable empty cells ── */}
       {editMode && mySide && (() => {
         const { minCol, maxCol } = sideRange(mySide)
         const cells = []
@@ -92,12 +145,10 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
           for (let c = minCol; c <= maxCol; c++) {
             if (grid[cellIndex(c, r)].type === 'empty') {
               cells.push(
-                <div
-                  key={`empty-${c}-${r}`}
-                  className="absolute cursor-pointer hover:bg-emerald-400/20 rounded-sm transition-colors"
-                  style={{ left: c * cellSize, top: (GRID_ROWS - 1 - r) * cellSize, width: cellSize - 1, height: cellSize - 1 }}
-                  onClick={() => onCellClick?.(c, r)}
-                />
+                <div key={`e-${c}-${r}`}
+                  className="absolute cursor-pointer hover:bg-white/15 rounded-sm transition-colors z-10"
+                  style={{ left: c * cs, top: (GRID_ROWS - 1 - r) * cs, width: cs - 1, height: cs - 1 }}
+                  onClick={() => onCellClick?.(c, r)} />
               )
             }
           }
@@ -105,37 +156,52 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
         return cells
       })()}
 
-      {/* Trajectory animation */}
-      {trajectory && trajectory.length > 0 && (
-        <svg className="absolute inset-0 pointer-events-none" width={gridW} height={gridH}>
-          <polyline
-            points={trajectory.map(p => `${p.x * cellSize},${(GRID_ROWS - p.y) * cellSize}`).join(' ')}
-            fill="none"
-            stroke="rgba(255,100,50,0.6)"
-            strokeWidth="2"
-            strokeDasharray="4 3"
-          />
+      {/* ── Trajectory (dotted arc after shot) ── */}
+      {trajectory && trajectory.length > 1 && (
+        <svg className="absolute inset-0 pointer-events-none z-20" width={W} height={H}>
+          {/* Dots along the trajectory */}
+          {trajectory.filter((_, i) => i % 3 === 0).map((p, i) => (
+            <circle key={i} cx={p.x * cs} cy={(GRID_ROWS - p.y) * cs} r={3}
+              fill="rgba(255,255,255,0.7)" stroke="rgba(0,0,0,0.2)" strokeWidth={0.5} />
+          ))}
         </svg>
       )}
 
-      {/* Impact explosion */}
+      {/* ── Impact explosion ── */}
       {impactResult && !impactResult.missed && (
-        <motion.div
-          className="absolute rounded-full bg-orange-500/50 border-2 border-orange-400"
-          style={{
-            left: impactResult.impactCol * cellSize - 15,
-            top: (GRID_ROWS - 1 - impactResult.impactRow) * cellSize - 15,
-            width: 30 + cellSize, height: 30 + cellSize,
-          }}
-          initial={{ scale: 0, opacity: 1 }}
-          animate={{ scale: 2.5, opacity: 0 }}
-          transition={{ duration: 1 }}
-        />
+        <>
+          {/* Shockwave */}
+          <motion.div className="absolute rounded-full border-4 border-orange-400/60 z-30"
+            style={{
+              left: impactResult.impactCol * cs - cs * 2,
+              top: (GRID_ROWS - 1 - impactResult.impactRow) * cs - cs * 2,
+              width: cs * 5, height: cs * 5,
+            }}
+            initial={{ scale: 0, opacity: 1 }}
+            animate={{ scale: 3, opacity: 0 }}
+            transition={{ duration: 0.8 }}
+          />
+          {/* Fireball */}
+          <motion.div className="absolute rounded-full bg-gradient-to-br from-yellow-400 via-orange-500 to-red-600 z-30"
+            style={{
+              left: impactResult.impactCol * cs - cs,
+              top: (GRID_ROWS - 1 - impactResult.impactRow) * cs - cs,
+              width: cs * 3, height: cs * 3,
+            }}
+            initial={{ scale: 0.3, opacity: 1 }}
+            animate={{ scale: [0.3, 1.5, 0], opacity: [1, 0.8, 0] }}
+            transition={{ duration: 0.6 }}
+          />
+        </>
       )}
 
-      {/* Catapults */}
-      <div className="absolute bottom-1 left-1 text-lg">🏹</div>
-      <div className="absolute bottom-1 right-1 text-lg scale-x-[-1]">🏹</div>
+      {/* ── Catapults (slingshots) ── */}
+      <div className="absolute z-20 flex flex-col items-center" style={{ left: cs * 1, bottom: groundH, transform: 'translateY(10%)' }}>
+        <div className="text-2xl">🏹</div>
+      </div>
+      <div className="absolute z-20 flex flex-col items-center" style={{ right: cs * 1, bottom: groundH, transform: 'translateY(10%) scaleX(-1)' }}>
+        <div className="text-2xl">🏹</div>
+      </div>
     </div>
   )
 }
