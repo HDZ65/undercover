@@ -302,6 +302,7 @@ function GamePhase({ pub, priv, game }: {
 }) {
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null)
   const isMyTurn = pub.currentPlayerId === priv.playerId
+  const [isAutoDrawing, setIsAutoDrawing] = useState(false)
 
   const selectedTile = selectedTileId !== null ? priv.hand.find(t => t.id === selectedTileId) : null
 
@@ -310,6 +311,19 @@ function GamePhase({ pub, priv, game }: {
     game.placeTile(selectedTileId, end)
     setSelectedTileId(null)
   }, [selectedTileId, game])
+
+  useEffect(() => {
+    let timeout: NodeJS.Timeout
+    if (isMyTurn && priv.playableTileIds.length === 0 && priv.canDraw) {
+      setIsAutoDrawing(true)
+      timeout = setTimeout(() => {
+        game.drawTile()
+      }, 800)
+    } else {
+      setIsAutoDrawing(false)
+    }
+    return () => clearTimeout(timeout)
+  }, [isMyTurn, priv.playableTileIds.length, priv.canDraw, game])
 
   // Compute HP: my HP = 100% minus OPPONENT's total score percentage
   const getHpForPlayer = (playerId: string) => {
@@ -421,7 +435,12 @@ function GamePhase({ pub, priv, game }: {
           </div>
           
           <div className="flex gap-2">
-            {isMyTurn && priv.canDraw && (
+            {isMyTurn && isAutoDrawing && (
+              <div className="px-4 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold text-sm rounded-xl animate-pulse shadow-sm flex items-center justify-center">
+                Pioche auto...
+              </div>
+            )}
+            {isMyTurn && priv.canDraw && !isAutoDrawing && (
               <button
                 onClick={game.drawTile}
                 className="px-4 py-1.5 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 border border-cyan-500/30 font-bold text-sm rounded-xl transition-colors shadow-sm"

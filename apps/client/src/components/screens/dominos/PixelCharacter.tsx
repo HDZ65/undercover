@@ -2,82 +2,97 @@ import { motion } from 'motion/react'
 
 type PixelGrid = string[][]
 
-// 12 columns × 16 rows — more detailed characters
-const KNIGHT: PixelGrid = [
-  ['','','','','#4a6fa5','#4a6fa5','#4a6fa5','#4a6fa5','','','',''],
-  ['','','','#4a6fa5','#6b8fc5','#6b8fc5','#6b8fc5','#6b8fc5','#4a6fa5','','',''],
-  ['','','#4a6fa5','#6b8fc5','#8bb0e0','#8bb0e0','#8bb0e0','#8bb0e0','#6b8fc5','#4a6fa5','',''],
-  ['','','#4a6fa5','#6b8fc5','#c0c0c0','#8bb0e0','#8bb0e0','#c0c0c0','#6b8fc5','#4a6fa5','',''],
-  ['','','','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#333','#ffd5b4','#ffd5b4','#333','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#ffd5b4','#e8a090','#e8a090','#ffd5b4','#ffd5b4','','',''],
-  ['','','#4a6fa5','#4a6fa5','#4a6fa5','#4a6fa5','#4a6fa5','#4a6fa5','#4a6fa5','#4a6fa5','',''],
-  ['','#4a6fa5','#6b8fc5','#6b8fc5','#c0c0c0','#c0c0c0','#c0c0c0','#c0c0c0','#6b8fc5','#6b8fc5','#4a6fa5',''],
-  ['','#4a6fa5','#6b8fc5','#6b8fc5','#6b8fc5','#c0c0c0','#c0c0c0','#6b8fc5','#6b8fc5','#6b8fc5','#4a6fa5',''],
-  ['','','#4a6fa5','#6b8fc5','#6b8fc5','#6b8fc5','#6b8fc5','#6b8fc5','#6b8fc5','#4a6fa5','',''],
-  ['','','','#ffd5b4','#ffd5b4','','','#ffd5b4','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#ffd5b4','','','#ffd5b4','#ffd5b4','','',''],
-  ['','','#4a6fa5','#4a6fa5','#4a6fa5','','','#4a6fa5','#4a6fa5','#4a6fa5','',''],
-  ['','','#4a6fa5','#4a6fa5','','','','','#4a6fa5','#4a6fa5','',''],
-  ['','#3a3a3a','#3a3a3a','#3a3a3a','','','','','#3a3a3a','#3a3a3a','#3a3a3a',''],
-]
+function parseGrid(art: string[], palette: Record<string, string>): PixelGrid {
+  return art.map(row => row.split('').map(char => palette[char] || ''))
+}
 
-const BERSERKER: PixelGrid = [
-  ['','','','#8b0000','','','','','#8b0000','','',''],
-  ['','','#8b0000','#cc3333','#8b0000','','','#8b0000','#cc3333','#8b0000','',''],
-  ['','','','#8b0000','#cc3333','#cc3333','#cc3333','#cc3333','#8b0000','','',''],
-  ['','','','#8b0000','#cc3333','#ff6666','#ff6666','#cc3333','#8b0000','','',''],
-  ['','','','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#333','#ffd5b4','#ffd5b4','#333','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','','',''],
-  ['','#8b0000','#8b0000','#8b0000','#8b0000','#8b0000','#8b0000','#8b0000','#8b0000','#8b0000','#8b0000',''],
-  ['#8b0000','#cc3333','#cc3333','#cc3333','#666','#666','#666','#666','#cc3333','#cc3333','#cc3333','#8b0000'],
-  ['','#8b0000','#cc3333','#cc3333','#cc3333','#666','#666','#cc3333','#cc3333','#cc3333','#8b0000',''],
-  ['','','#8b0000','#cc3333','#cc3333','#cc3333','#cc3333','#cc3333','#cc3333','#8b0000','',''],
-  ['','','','#ffd5b4','#ffd5b4','','','#ffd5b4','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#ffd5b4','','','#ffd5b4','#ffd5b4','','',''],
-  ['','','#8b0000','#8b0000','#8b0000','','','#8b0000','#8b0000','#8b0000','',''],
-  ['','','#8b0000','#8b0000','','','','','#8b0000','#8b0000','',''],
-  ['','#3a3a3a','#3a3a3a','#3a3a3a','','','','','#3a3a3a','#3a3a3a','#3a3a3a',''],
-]
+const KNIGHT = parseGrid([
+  "    oooo    ",
+  "   oOOOOo   ",
+  "   ovggvo   ",
+  "   o.vv.o   ",
+  "   o....o   ",
+  "    oooo    ",
+  "  .xoooox.  ",
+  " .xxoOooOox.",
+  " gxxoOooOoxg",
+  " g .oooo.  g",
+  "   x....x   ",
+  "   xO..Ox   ",
+  "   x....x   ",
+  "   xx..xx   ",
+  "   xx  xx   ",
+  "  xxx  xxx  ",
+], {
+  'o': '#90a4ae', 'O': '#cfd8dc', 'x': '#546e7a', '.': '#263238',
+  'g': '#fdd835', 'v': '#ffcc80', ' ': ''
+})
 
-const MAGE: PixelGrid = [
-  ['','','','','','#ffd700','','','','','',''],
-  ['','','','','#6a0dad','#ffd700','#6a0dad','','','','',''],
-  ['','','','#6a0dad','#9b59b6','#9b59b6','#9b59b6','#6a0dad','','','',''],
-  ['','','#6a0dad','#9b59b6','#9b59b6','#ffd700','#9b59b6','#9b59b6','#6a0dad','','',''],
-  ['','','','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#333','#ffd5b4','#ffd5b4','#333','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','','',''],
-  ['','#6a0dad','#6a0dad','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#6a0dad','#6a0dad',''],
-  ['','','#6a0dad','#9b59b6','#9b59b6','#ffd700','#ffd700','#9b59b6','#9b59b6','#6a0dad','',''],
-  ['','','','#6a0dad','#9b59b6','#9b59b6','#9b59b6','#9b59b6','#6a0dad','','',''],
-  ['','','','','#6a0dad','#9b59b6','#9b59b6','#6a0dad','','','',''],
-  ['','','','#ffd5b4','','#6a0dad','#6a0dad','','#ffd5b4','','',''],
-  ['','','','#ffd5b4','','','','','#ffd5b4','','',''],
-  ['','','#6a0dad','#6a0dad','#6a0dad','','','#6a0dad','#6a0dad','#6a0dad','',''],
-  ['','','#6a0dad','#6a0dad','','','','','#6a0dad','#6a0dad','',''],
-  ['','#3a3a3a','#3a3a3a','#3a3a3a','','','','','#3a3a3a','#3a3a3a','#3a3a3a',''],
-]
+const BERSERKER = parseGrid([
+  "    RrRr    ",
+  "   RrRRrR   ",
+  "   r.ss.r   ",
+  "   r.ss.r   ",
+  "    SSSS    ",
+  "  .sSSSSs.  ",
+  " .ssSSSSss. ",
+  "w.bbSSSSbb. ",
+  "w.b.SSSS.b. ",
+  "w.. bbbb .. ",
+  "w   b..b    ",
+  "w   b..b    ",
+  "    b..b    ",
+  "    ....    ",
+  "   bb  bb   ",
+  "  bbb  bbb  ",
+], {
+  'S': '#f57c00', 's': '#ffb74d', '.': '#e65100', 'r': '#d32f2f',
+  'R': '#f44336', 'b': '#4e342e', 'w': '#eeeeee', ' ': ''
+})
 
-const SAMURAI: PixelGrid = [
-  ['','','','','#c0392b','#c0392b','#c0392b','#c0392b','','','',''],
-  ['','','','#2c2c2c','#2c2c2c','#c0392b','#c0392b','#2c2c2c','#2c2c2c','','',''],
-  ['','','#2c2c2c','#444','#444','#444','#444','#444','#444','#2c2c2c','',''],
-  ['','','#2c2c2c','#444','#c0392b','#444','#444','#c0392b','#444','#2c2c2c','',''],
-  ['','','','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#333','#ffd5b4','#ffd5b4','#333','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','#ffd5b4','','',''],
-  ['','#2c2c2c','#2c2c2c','#444','#444','#444','#444','#444','#444','#2c2c2c','#2c2c2c',''],
-  ['','#2c2c2c','#444','#444','#c0392b','#c0392b','#c0392b','#c0392b','#444','#444','#2c2c2c',''],
-  ['','','#2c2c2c','#444','#444','#c0392b','#c0392b','#444','#444','#2c2c2c','',''],
-  ['','','','#2c2c2c','#444','#444','#444','#444','#2c2c2c','','',''],
-  ['','','','#ffd5b4','#ffd5b4','','','#ffd5b4','#ffd5b4','','',''],
-  ['','','','#ffd5b4','#ffd5b4','','','#ffd5b4','#ffd5b4','','',''],
-  ['','','#2c2c2c','#2c2c2c','#2c2c2c','','','#2c2c2c','#2c2c2c','#2c2c2c','',''],
-  ['','','#2c2c2c','#2c2c2c','','','','','#2c2c2c','#2c2c2c','',''],
-  ['','#3a3a3a','#3a3a3a','#3a3a3a','','','','','#3a3a3a','#3a3a3a','#3a3a3a',''],
-]
+const MAGE = parseGrid([
+  "     pp     ",
+  "    pppp    ",
+  "   gppppg   ",
+  "   c.ss.c   ",
+  "   c....c   ",
+  "     ss     ",
+  "  pppppppp y",
+  " pPppppppPy ",
+  " pPppppppPy ",
+  " p..pppp..y ",
+  "  ..pppp..y ",
+  "    p..p  y ",
+  "    P..P  y ",
+  "    ....  y ",
+  "    p  p    ",
+  "   pp  pp   ",
+], {
+  'p': '#5e35b1', 'P': '#311b92', '.': '#1a237e', 's': '#ffcc80',
+  'c': '#42a5f5', 'g': '#ffeb3b', 'y': '#8d6e63', ' ': ''
+})
+
+const SAMURAI = parseGrid([
+  "    g..g    ",
+  "   rRRRRr   ",
+  "   r....r   ",
+  "   r.ss.r   ",
+  "    SSSS    ",
+  "  x.RRRR.x  ",
+  " xx.RrRr.xx ",
+  " xx.RRRR.xx ",
+  " .. .RR. .. ",
+  "w   ....   w",
+  "w  xR..Rx  w",
+  "    R..R    ",
+  "    ....    ",
+  "    x..x    ",
+  "    x  x    ",
+  "   xx  xx   ",
+], {
+  'R': '#d32f2f', 'r': '#b71c1c', 'x': '#212121', '.': '#000000',
+  'S': '#ffb74d', 's': '#ffe082', 'g': '#fbc02d', 'w': '#e0e0e0', ' ': ''
+})
 
 const CHARACTERS = [KNIGHT, BERSERKER, MAGE, SAMURAI]
 const CHARACTER_NAMES = ['Chevalier', 'Berserker', 'Mage', 'Samouraï']
@@ -94,9 +109,9 @@ function renderPixelGrid(grid: PixelGrid, pixelSize: number): string {
   return shadows.join(', ')
 }
 
-interface PixelCharacterProps {
+export interface PixelCharacterProps {
   characterIndex: number
-  hp: number // 0-100
+  hp: number
   name: string
   score?: number
   isAttacking?: boolean
@@ -128,7 +143,6 @@ export function PixelCharacter({
 
   return (
     <div className="flex flex-col items-center gap-1.5">
-      {/* Name + score */}
       <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate max-w-[100px]">
         {name}
       </span>
@@ -136,32 +150,42 @@ export function PixelCharacter({
         <span className="text-xs font-medium text-amber-600 dark:text-amber-400">{score} pts</span>
       )}
 
-      {/* Health bar */}
-      <div className={`w-24 h-3 ${hpBgColor} rounded-full overflow-hidden border border-slate-400/30`}>
+      <div className={`w-24 h-2.5 ${hpBgColor} rounded-full overflow-hidden border border-slate-400/30 shadow-inner`}>
         <motion.div
           className={`h-full rounded-full ${hpColor}`}
           animate={{ width: `${Math.max(0, hp)}%` }}
-          transition={{ duration: 1, ease: 'easeInOut' }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
         />
       </div>
 
-      {/* Character */}
       <motion.div
         className="relative"
         style={{ width: gridWidth, height: gridHeight }}
         animate={
           isAttacking
-            ? { x: [0, flipped ? -40 : 40, 0], scale: [1, 1.2, 1] }
+            ? { 
+                scale: [1, 1.25, 0.9, 1], 
+                x: [0, flipped ? -45 : 45, 0],
+                rotate: [0, flipped ? -15 : 15, 0]
+              }
             : isRecoiling
-              ? { x: [0, flipped ? 20 : -20, 0], opacity: [1, 0.2, 1, 0.2, 1] }
+              ? { 
+                  rotate: [0, flipped ? 25 : -25, 0], 
+                  x: [0, flipped ? 15 : -15, 0], 
+                  opacity: [1, 0.5, 1, 0.5, 1]
+                }
               : isVictorious
-                ? { y: [0, -10, 0], scale: [1, 1.15, 1] }
-                : { y: [0, -3, 0] }
+                ? { y: [0, -15, 0], scale: [1, 1.15, 1] }
+                : { scaleY: [1, 0.96, 1], scaleX: [1, 1.02, 1], y: [0, 1, 0] } // Idle breathing effect
         }
         transition={
-          isAttacking || isRecoiling
-            ? { duration: 0.6, ease: 'easeInOut' }
-            : { duration: 1.5, repeat: Infinity, ease: 'easeInOut' }
+          isAttacking
+            ? { duration: 0.5, ease: 'easeInOut' }
+            : isRecoiling
+              ? { duration: 0.6, ease: 'easeOut' }
+              : isVictorious
+                ? { duration: 1, repeat: Infinity, ease: 'easeInOut' }
+                : { duration: 1.5, repeat: Infinity, ease: 'easeInOut' } // Idle
         }
       >
         <div
@@ -174,7 +198,8 @@ export function PixelCharacter({
         />
       </motion.div>
 
-      <span className="text-[10px] text-slate-400 dark:text-slate-500">{charName}</span>
+      <span className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-black tracking-widest">{charName}</span>
     </div>
   )
 }
+

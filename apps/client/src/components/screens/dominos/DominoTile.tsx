@@ -93,11 +93,13 @@ export function DominoTileComponent({
   `
 
   if (selected) {
-    containerClasses += ' ring-4 ring-amber-400 shadow-[0_2px_0_rgba(251,191,36,1),0_8px_15px_rgba(0,0,0,0.2)] -translate-y-2'
+    containerClasses += ' ring-4 ring-amber-400 shadow-[0_2px_0_rgba(251,191,36,1),0_8px_15px_rgba(0,0,0,0.2)] -translate-y-2 z-20'
   } else if (playable) {
-    containerClasses += ' cursor-pointer hover:shadow-[0_6px_0_rgba(203,213,225,1),0_10px_20px_rgba(0,0,0,0.15)] dark:hover:shadow-[0_6px_0_rgba(51,65,85,1),0_10px_20px_rgba(0,0,0,0.4)] hover:-translate-y-1 shadow-[0_4px_0_rgba(203,213,225,1),0_4px_10px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_0_rgba(51,65,85,1),0_4px_10px_rgba(0,0,0,0.3)]'
+    // Glow effect to make it extremely obvious
+    containerClasses += ' cursor-pointer ring-2 ring-emerald-400/80 shadow-[0_4px_0_rgba(52,211,153,0.8),0_0_15px_rgba(52,211,153,0.4)] dark:shadow-[0_4px_0_rgba(52,211,153,0.6),0_0_15px_rgba(52,211,153,0.3)] hover:-translate-y-1 hover:shadow-[0_6px_0_rgba(52,211,153,0.8),0_0_20px_rgba(52,211,153,0.5)] z-10'
   } else {
-    containerClasses += ' opacity-80 shadow-[0_2px_0_rgba(203,213,225,1)] dark:shadow-[0_2px_0_rgba(51,65,85,1)]'
+    // Heavily greyed out and low opacity to signify unplayable
+    containerClasses += ' opacity-40 grayscale-[60%] shadow-[0_2px_0_rgba(203,213,225,0.5)] dark:shadow-[0_2px_0_rgba(51,65,85,0.5)] z-0'
   }
 
   return (
