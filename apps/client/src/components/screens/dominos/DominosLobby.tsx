@@ -460,7 +460,7 @@ export function DominosLobby({ onBack }: { onBack: () => void }) {
   const isGamePhase = pub.phase === 'playerTurn'
 
   return (
-    <div className={`min-h-screen flex flex-col ${isGamePhase ? 'p-0' : 'items-center justify-center p-4'} bg-gradient-to-b from-stone-100 to-amber-50 dark:from-slate-900 dark:to-slate-950`}>
+    <div className={`${isGamePhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto' : 'min-h-screen flex flex-col items-center justify-center p-4'} bg-gradient-to-b from-stone-100 to-amber-50 dark:from-slate-900 dark:to-slate-950`}>
       <AnimatePresence mode="wait">
         {pub.phase === 'lobby' && (
           <LobbyPhase
