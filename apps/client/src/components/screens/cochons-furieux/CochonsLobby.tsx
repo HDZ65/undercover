@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import type {
   Grid,
@@ -59,6 +59,38 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
   const [dragging, setDragging] = useState(false)
   const [dragDelta, setDragDelta] = useState<{ dx: number; dy: number } | null>(null)
   const dragOrigin = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+
+  // Flying projectile animation
+  const [projectilePos, setProjectilePos] = useState<{ x: number; y: number } | null>(null)
+  const [showImpact, setShowImpact] = useState(false)
+  const prevTrajectoryLen = useRef(0)
+
+  useEffect(() => {
+    // Detect new trajectory (new shot fired)
+    const tLen = trajectory?.length ?? 0
+    if (tLen > 1 && tLen !== prevTrajectoryLen.current) {
+      prevTrajectoryLen.current = tLen
+      setShowImpact(false)
+      // Animate projectile along trajectory points over ~4 seconds
+      const pts = trajectory!
+      const totalMs = 3500
+      const stepMs = totalMs / pts.length
+      let i = 0
+      const interval = setInterval(() => {
+        if (i < pts.length) {
+          setProjectilePos({ x: pts[i].x, y: pts[i].y })
+          i++
+        } else {
+          clearInterval(interval)
+          setProjectilePos(null)
+          setShowImpact(true)
+          // Hide impact after 1.5s
+          setTimeout(() => setShowImpact(false), 1500)
+        }
+      }, stepMs)
+      return () => clearInterval(interval)
+    }
+  }, [trajectory])
 
   // Responsive cell size — fill the viewport width
   const cs = Math.max(12, Math.floor((typeof window !== 'undefined' ? window.innerWidth - 16 : 800) / GRID_COLS))
@@ -183,21 +215,42 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
         return cells
       })()}
 
-      {/* ── Trajectory (dotted arc after shot) ── */}
-      {trajectory && trajectory.length > 1 && (
+      {/* ── Flying projectile ── */}
+      {projectilePos && (
+        <div className="absolute z-40 pointer-events-none"
+          style={{
+            left: projectilePos.x * cs - cs * 0.6,
+            top: (GRID_ROWS - projectilePos.y) * cs - cs * 0.6,
+            width: cs * 1.2, height: cs * 1.2,
+          }}>
+          {/* Rock/bomb/missile */}
+          <div className="w-full h-full rounded-full bg-gradient-to-br from-slate-500 to-slate-700 border-2 border-slate-800 shadow-[0_0_10px_rgba(0,0,0,0.5)]" />
+        </div>
+      )}
+
+      {/* ── Trail dots (shown behind the projectile) ── */}
+      {projectilePos && trajectory && (
         <svg className="absolute inset-0 pointer-events-none z-20" width={W} height={H}>
-          {/* Dots along the trajectory */}
-          {trajectory.filter((_, i) => i % 3 === 0).map((p, i) => (
-            <circle key={i} cx={p.x * cs} cy={(GRID_ROWS - p.y) * cs} r={3}
-              fill="rgba(255,255,255,0.7)" stroke="rgba(0,0,0,0.2)" strokeWidth={0.5} />
+          {trajectory.slice(0, Math.floor((trajectory.length) * (projectilePos ? 1 : 0))).filter((_, i) => i % 4 === 0).map((p, i) => (
+            <circle key={i} cx={p.x * cs} cy={(GRID_ROWS - p.y) * cs} r={2}
+              fill="rgba(255,255,255,0.4)" />
           ))}
         </svg>
       )}
 
-      {/* ── Impact explosion ── */}
-      {impactResult && !impactResult.missed && (
+      {/* ── Trajectory dots (full trail after projectile lands) ── */}
+      {!projectilePos && trajectory && trajectory.length > 1 && (
+        <svg className="absolute inset-0 pointer-events-none z-20" width={W} height={H}>
+          {trajectory.filter((_, i) => i % 3 === 0).map((p, i) => (
+            <circle key={i} cx={p.x * cs} cy={(GRID_ROWS - p.y) * cs} r={2.5}
+              fill="rgba(255,255,255,0.6)" stroke="rgba(0,0,0,0.15)" strokeWidth={0.5} />
+          ))}
+        </svg>
+      )}
+
+      {/* ── Impact explosion (after projectile finishes flying) ── */}
+      {showImpact && impactResult && !impactResult.missed && (
         <>
-          {/* Shockwave */}
           <motion.div className="absolute rounded-full border-4 border-orange-400/60 z-30"
             style={{
               left: impactResult.impactCol * cs - cs * 2,
@@ -208,7 +261,6 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
             animate={{ scale: 3, opacity: 0 }}
             transition={{ duration: 0.8 }}
           />
-          {/* Fireball */}
           <motion.div className="absolute rounded-full bg-gradient-to-br from-yellow-400 via-orange-500 to-red-600 z-30"
             style={{
               left: impactResult.impactCol * cs - cs,
@@ -459,6 +511,11 @@ function BuildPhase({ pub, priv, game }: { pub: CochonsPublicState; priv: Cochon
           {pigCount < 5 ? `Placez encore ${5 - pigCount} cochon(s)` : 'Confirmer'}
         </button>
       ) : <p className="text-center text-emerald-500 font-bold">✓ En attente de l'adversaire...</p>}
+
+      <button onClick={game.leaveRoom}
+        className="px-4 py-2 text-red-400 hover:text-red-300 text-sm font-medium border border-red-400/30 rounded-lg hover:bg-red-500/10 transition-colors">
+        Abandonner la partie
+      </button>
     </div>
   )
 }
@@ -519,6 +576,11 @@ function BattlePhase({ pub, priv, game }: { pub: CochonsPublicState; priv: Cocho
             : `${pub.players.find(p => p.id === lastShot.playerId)?.name} a touché ! ${lastShot.result.killedPigs > 0 ? `${lastShot.result.killedPigs} cochon(s) éliminé(s) !` : ''}`}
         </p>
       )}
+
+      <button onClick={game.leaveRoom}
+        className="px-4 py-2 text-red-400 hover:text-red-300 text-sm font-medium border border-red-400/30 rounded-lg hover:bg-red-500/10 transition-colors">
+        Abandonner la partie
+      </button>
     </div>
   )
 }
