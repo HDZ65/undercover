@@ -74,6 +74,14 @@ const GAMES: GameOption[] = [
     players: '2-4 joueurs',
     available: true,
   },
+  {
+    id: 'cochons-furieux',
+    title: 'Cochons Furieux',
+    description: 'Construisez un chateau, placez vos cochons, et bombardez la forteresse adverse au lance-pierre !',
+    gradient: 'from-emerald-500 to-lime-600',
+    players: '2 joueurs',
+    available: true,
+  },
 ]
 
 interface GameMenuProps {

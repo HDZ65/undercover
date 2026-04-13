@@ -38,7 +38,15 @@ export function CombatOverlay({ data, players, targetScore, onComplete }: Combat
 
   if (!winner) return null
 
-  const winnerHp = Math.max(0, 100 - (winner.totalScore / targetScore) * 100)
+  // HP is inverse of OPPONENT's score, not own score
+  // Winner's HP = 100% minus the max opponent score percentage
+  const getHpForPlayer = (playerId: string) => {
+    const opponents = players.filter(p => p.id !== playerId)
+    const maxOppScore = Math.max(0, ...opponents.map(p => p.totalScore))
+    return Math.max(0, 100 - (maxOppScore / targetScore) * 100)
+  }
+
+  const winnerHp = getHpForPlayer(winner.id)
 
   return (
     <motion.div
@@ -121,9 +129,12 @@ export function CombatOverlay({ data, players, targetScore, onComplete }: Combat
           {/* Losers */}
           <div className="flex gap-4">
             {losers.map(loser => {
-              const loserHp = phase === 'damage' || phase === 'result'
-                ? Math.max(0, 100 - ((loser.totalScore + (data.damagePerPlayer[loser.id] ?? 0)) / targetScore) * 100)
-                : Math.max(0, 100 - (loser.totalScore / targetScore) * 100)
+              // Loser's HP = based on winner's score (inverse)
+              // After damage: winner gained points, so loser HP drops
+              const winnerScore = phase === 'damage' || phase === 'result'
+                ? winner.totalScore + data.pointsScored
+                : winner.totalScore
+              const loserHp = Math.max(0, 100 - (winnerScore / targetScore) * 100)
 
               return (
                 <motion.div

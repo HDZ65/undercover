@@ -19,6 +19,7 @@ import { CodenamesLobby } from './components/screens/codenames'
 import { TamalouLobby } from './components/screens/tamalou'
 import { MojoLobby } from './components/screens/mojo'
 import { DominosLobby } from './components/screens/dominos'
+import { CochonsLobby } from './components/screens/cochons-furieux'
 
 import { ConnectionStatusOverlay } from './components/ui/ConnectionStatusOverlay'
 import { useKeepAlive } from './hooks/useKeepAlive'
@@ -105,6 +106,10 @@ function App() {
 
     if (selectedGame === 'dominos') {
       return <DominosLobby onBack={handleBackToMenu} />
+    }
+
+    if (selectedGame === 'cochons-furieux') {
+      return <CochonsLobby onBack={handleBackToMenu} />
     }
 
     return <GameMenu onSelectGame={setSelectedGame} />

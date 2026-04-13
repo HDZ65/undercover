@@ -6,3 +6,4 @@ export * from './codenames';
 export * from './tamalou';
 export * from './mojo';
 export * from './dominos';
+export * from './cochons-furieux';

@@ -150,33 +150,61 @@ function LobbyPhase({ pub, priv, onStart, onSetTarget, onLeave }: {
 }
 
 // ─── Board View ──────────────────────────────────────────────────
+// Dominos displayed horizontally. When the board is too wide, tiles wrap
+// and continue on the next row going the opposite direction (snake pattern).
 
 function BoardView({ board }: { board: BoardState }) {
   if (board.tiles.length === 0) {
     return (
-      <div className="flex items-center justify-center h-24 text-slate-400 dark:text-slate-500 italic">
+      <div className="flex items-center justify-center h-32 text-slate-400 dark:text-slate-500 italic text-lg">
         Plateau vide — posez le premier domino !
       </div>
     )
   }
 
+  // Each horizontal tile is ~60px wide. Calculate tiles per row based on container.
+  const tileW = 62 // approx width of a horizontal tile at size=28
+  const maxPerRow = Math.max(4, Math.floor((typeof window !== 'undefined' ? window.innerWidth - 40 : 800) / tileW))
+
+  // Split tiles into rows (snake: even rows L→R, odd rows R→L visually)
+  const rows: (typeof board.tiles[number])[][] = []
+  for (let i = 0; i < board.tiles.length; i += maxPerRow) {
+    const row = board.tiles.slice(i, i + maxPerRow)
+    rows.push(row)
+  }
+
   return (
-    <div className="overflow-x-auto py-2">
-      <div className="flex items-center gap-0.5 min-w-min mx-auto px-4">
-        {board.tiles.map((bt, i) => {
-          const tile = bt.flipped ? { ...bt.tile, top: bt.tile.bottom, bottom: bt.tile.top } : bt.tile
-          return (
-            <motion.div
-              key={`${bt.tile.id}-${i}`}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.2 }}
-            >
-              <DominoTileComponent tile={tile} size={28} horizontal />
-            </motion.div>
-          )
-        })}
-      </div>
+    <div className="py-2 px-2 space-y-1 overflow-x-auto">
+      {rows.map((row, rowIdx) => (
+        <div
+          key={rowIdx}
+          className={`flex items-center gap-0.5 ${rowIdx % 2 === 1 ? 'flex-row-reverse' : ''}`}
+        >
+          {row.map((bt, i) => {
+            // flipped controls which pip faces which direction on the board
+            const displayTile = bt.flipped
+              ? { ...bt.tile, top: bt.tile.bottom, bottom: bt.tile.top }
+              : bt.tile
+
+            return (
+              <motion.div
+                key={`${bt.tile.id}-${rowIdx}-${i}`}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.2 }}
+              >
+                <DominoTileComponent tile={displayTile} size={28} horizontal />
+              </motion.div>
+            )
+          })}
+          {/* Arrow indicator for row continuation */}
+          {rowIdx < rows.length - 1 && (
+            <span className="text-slate-400 text-lg px-1">
+              {rowIdx % 2 === 0 ? '↓' : '↓'}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
@@ -260,26 +288,35 @@ function GamePhase({ pub, priv, game }: {
 
   const selectedTile = selectedTileId !== null ? priv.hand.find(t => t.id === selectedTileId) : null
 
+  // Compute HP: my HP = 100% minus OPPONENT's total score percentage
+  // If opponent has 0 points → my bar is full. If opponent reaches targetScore → I'm dead.
+  const getHpForPlayer = (playerId: string) => {
+    const opponents = pub.players.filter(p => p.id !== playerId)
+    const maxOpponentScore = Math.max(0, ...opponents.map(p => p.totalScore))
+    return Math.max(0, 100 - (maxOpponentScore / pub.targetScore) * 100)
+  }
+
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-4">
+    <div className="w-full h-full flex flex-col gap-3 px-4 py-2">
       {/* Header */}
-      <div className="flex items-center justify-between px-2">
+      <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-slate-500">Manche {pub.round} • Score cible : {pub.targetScore}</span>
         <span className="text-sm text-slate-500">Pioche : {pub.boneyardCount}</span>
       </div>
 
       {/* Characters bar */}
-      <div className="flex justify-around items-end px-4 py-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
+      <div className="flex justify-around items-end px-6 py-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
         {pub.players.map(p => {
-          const hp = Math.max(0, 100 - (p.totalScore / pub.targetScore) * 100)
+          const hp = getHpForPlayer(p.id)
           const isCurrent = pub.currentPlayerId === p.id
           return (
-            <div key={p.id} className={`relative ${isCurrent ? 'ring-2 ring-amber-400 rounded-xl p-1' : 'p-1'}`}>
+            <div key={p.id} className={`relative ${isCurrent ? 'ring-2 ring-amber-400 rounded-xl p-2' : 'p-2'}`}>
               <PixelCharacter
                 characterIndex={p.characterIndex}
                 hp={hp}
-                name={`${p.name} (${p.totalScore})`}
-                size={4}
+                name={p.name}
+                score={p.totalScore}
+                size={5}
               />
               <div className="text-center text-xs text-slate-400 mt-1">{p.tileCount} tuiles</div>
             </div>
@@ -288,7 +325,7 @@ function GamePhase({ pub, priv, game }: {
       </div>
 
       {/* Board */}
-      <div className="bg-emerald-800/10 dark:bg-emerald-900/20 rounded-2xl border border-emerald-700/20 min-h-[80px] flex items-center">
+      <div className="flex-1 bg-emerald-800/10 dark:bg-emerald-900/20 rounded-2xl border border-emerald-700/20 min-h-[100px] flex items-center overflow-hidden">
         <BoardView board={pub.board} />
       </div>
 
@@ -420,8 +457,10 @@ export function DominosLobby({ onBack }: { onBack: () => void }) {
     )
   }
 
+  const isGamePhase = pub.phase === 'playerTurn'
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-b from-stone-100 to-amber-50 dark:from-slate-900 dark:to-slate-950">
+    <div className={`min-h-screen flex flex-col ${isGamePhase ? 'p-0' : 'items-center justify-center p-4'} bg-gradient-to-b from-stone-100 to-amber-50 dark:from-slate-900 dark:to-slate-950`}>
       <AnimatePresence mode="wait">
         {pub.phase === 'lobby' && (
           <LobbyPhase

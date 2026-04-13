@@ -36,6 +36,11 @@ import type {
   DominosServerToClientEvents,
 } from '@undercover/shared';
 import { DominosRoomManager } from './dominos/roomManager.js';
+import type {
+  CochonsClientToServerEvents,
+  CochonsServerToClientEvents,
+} from '@undercover/shared';
+import { CochonsRoomManager } from './cochons-furieux/roomManager.js';
 
 const app = express();
 app.use(cors());
@@ -77,6 +82,8 @@ const mojoNamespace = io.of('/mojo') as Namespace<MojoClientToServerEvents, Mojo
 const mojoRoomManager = new MojoRoomManager(mojoNamespace);
 const dominosNamespace = io.of('/dominos') as Namespace<DominosClientToServerEvents, DominosServerToClientEvents>;
 const dominosRoomManager = new DominosRoomManager(dominosNamespace);
+const cochonsNamespace = io.of('/cochons-furieux') as Namespace<CochonsClientToServerEvents, CochonsServerToClientEvents>;
+const cochonsRoomManager = new CochonsRoomManager(cochonsNamespace);
 
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
@@ -497,6 +504,24 @@ dominosNamespace.on('connection', (socket) => {
   socket.on('game:nextRound', () => dominosRoomManager.handleNextRound(socket));
   socket.on('game:resetGame', () => dominosRoomManager.handleResetGame(socket));
   socket.on('disconnect', () => dominosRoomManager.handleDisconnect(socket));
+});
+
+// ── Cochons Furieux namespace ──
+cochonsNamespace.on('connection', (socket) => {
+  console.log(`[Cochons] Connected: ${socket.id}`);
+  socket.on('room:create', (data) => cochonsRoomManager.createRoom(socket, data.playerName));
+  socket.on('room:join', (data) => cochonsRoomManager.joinRoom(socket, data.roomCode, data.playerName, data.playerToken));
+  socket.on('room:leave', () => cochonsRoomManager.leaveRoom(socket));
+  socket.on('game:startGame', () => cochonsRoomManager.handleStartGame(socket));
+  socket.on('game:selectTemplate', (data) => cochonsRoomManager.handleSelectTemplate(socket, data.templateId));
+  socket.on('game:placeBlock', (data) => cochonsRoomManager.handlePlaceBlock(socket, data.col, data.row, data.type));
+  socket.on('game:removeBlock', (data) => cochonsRoomManager.handleRemoveBlock(socket, data.col, data.row));
+  socket.on('game:placePig', (data) => cochonsRoomManager.handlePlacePig(socket, data.col, data.row));
+  socket.on('game:removePig', (data) => cochonsRoomManager.handleRemovePig(socket, data.col, data.row));
+  socket.on('game:confirmBuild', () => cochonsRoomManager.handleConfirmBuild(socket));
+  socket.on('game:fire', (data) => cochonsRoomManager.handleFire(socket, data.angle, data.power, data.weapon));
+  socket.on('game:resetGame', () => cochonsRoomManager.handleResetGame(socket));
+  socket.on('disconnect', () => cochonsRoomManager.handleDisconnect(socket));
 });
 
 // ── Global error handlers — prevent silent crashes ──

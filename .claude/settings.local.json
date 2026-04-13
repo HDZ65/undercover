@@ -13,7 +13,8 @@
       "Bash(xargs grep:*)"
     ],
     "additionalDirectories": [
-      "C:\\Users\\compt\\.claude"
+      "C:\\Users\\compt\\.claude",
+      "c:\\Users\\compt\\undercover\\packages\\shared\\src"
     ]
   }
 }
