@@ -7,6 +7,10 @@ export const GRID_SIZE = GRID_COLS * GRID_ROWS
 export const HALF_COLS = 20 // each player's half
 export const MAX_PIGS = 5
 export const BUILD_TIMER_SECONDS = 60
+// Build material limits per player
+export const MAX_WOOD = 20
+export const MAX_STONE = 12
+export const MAX_STEEL = 5
 export const SHOTS_PER_PLAYER = 5
 export const TOTAL_TURNS = SHOTS_PER_PLAYER * 2
 
@@ -55,12 +59,18 @@ export interface WeaponSpec {
   count: number
   labelFr: string
   emoji: string
+  /** Special effect description */
+  effect: string
+  /** Does the projectile pierce through blocks? (missile) */
+  piercing: boolean
+  /** Does the projectile split into fragments? (bomb) */
+  fragmentCount: number
 }
 
 export const WEAPON_SPECS: Record<WeaponType, WeaponSpec> = {
-  rock:    { type: 'rock',    radius: 2, damage: 1, count: 3, labelFr: 'Rocher',  emoji: '🪨' },
-  bomb:    { type: 'bomb',    radius: 3, damage: 2, count: 1, labelFr: 'Bombe',   emoji: '💣' },
-  missile: { type: 'missile', radius: 1, damage: 3, count: 1, labelFr: 'Missile', emoji: '🚀' },
+  rock:    { type: 'rock',    radius: 2, damage: 1, count: 3, labelFr: 'Rocher',  emoji: '🪨', effect: 'Impact standard', piercing: false, fragmentCount: 0 },
+  bomb:    { type: 'bomb',    radius: 4, damage: 2, count: 1, labelFr: 'Bombe',   emoji: '💣', effect: 'Grande explosion + fragments', piercing: false, fragmentCount: 3 },
+  missile: { type: 'missile', radius: 1, damage: 4, count: 1, labelFr: 'Missile', emoji: '🚀', effect: 'Perce les blocs', piercing: true, fragmentCount: 0 },
 }
 
 export const DEFAULT_INVENTORY: Record<WeaponType, number> = { rock: 3, bomb: 1, missile: 1 }

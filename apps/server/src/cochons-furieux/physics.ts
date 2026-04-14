@@ -135,12 +135,15 @@ export function applyGravity(grid: Grid): ShotResult['fallenBlocks'] {
   return fallen;
 }
 
-/** Full shot resolution */
+/** Full shot resolution with weapon-specific effects */
 export function resolveShot(grid: Grid, shot: ShotInput, shooterSide: PlayerSide): ShotResult {
   const spec = WEAPON_SPECS[shot.weapon];
-  const { trajectory, impactCol, impactRow, missed } = computeTrajectoryAndImpact(shot.angle, shot.power, shooterSide, grid);
 
-  if (missed) {
+  // Missile: piercing — don't stop at first hit, continue through and damage everything on the line
+  const useGrid = spec.piercing ? undefined : grid;
+  const { trajectory, impactCol, impactRow, missed } = computeTrajectoryAndImpact(shot.angle, shot.power, shooterSide, useGrid);
+
+  if (missed && !spec.piercing) {
     return {
       impactCol: -1, impactRow: -1,
       weapon: shot.weapon, destroyedCells: [], killedPigs: 0, killedPigOwners: {},
@@ -148,12 +151,66 @@ export function resolveShot(grid: Grid, shot: ShotInput, shooterSide: PlayerSide
     };
   }
 
-  const { destroyedCells, killedPigs, killedPigOwners } = applyDamage(grid, impactCol, impactRow, spec);
+  let allDestroyed: ShotResult['destroyedCells'] = [];
+  let totalKilledPigs = 0;
+  const allKilledPigOwners: Record<string, number> = {};
+
+  if (spec.piercing) {
+    // Missile: damage every non-empty cell the trajectory passes through
+    const hitCells = new Set<string>();
+    for (const pt of trajectory) {
+      const c = Math.floor(pt.x); const r = Math.floor(pt.y);
+      if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) continue;
+      const key = `${c},${r}`;
+      if (hitCells.has(key)) continue;
+      hitCells.add(key);
+      const idx = cellIndex(c, r);
+      if (grid[idx].type !== 'empty') {
+        const wasType = grid[idx].type;
+        grid[idx].hp -= spec.damage;
+        if (grid[idx].hp <= 0) {
+          if (wasType === 'pig') {
+            totalKilledPigs++;
+            const owner = grid[idx].ownerId ?? '';
+            allKilledPigOwners[owner] = (allKilledPigOwners[owner] ?? 0) + 1;
+          }
+          allDestroyed.push({ col: c, row: r, wasType });
+          grid[idx] = { type: 'empty', hp: 0 };
+        }
+      }
+    }
+  } else {
+    // Rock & Bomb: standard area damage at impact point
+    const { destroyedCells, killedPigs, killedPigOwners } = applyDamage(grid, impactCol, impactRow, spec);
+    allDestroyed = destroyedCells;
+    totalKilledPigs = killedPigs;
+    Object.assign(allKilledPigOwners, killedPigOwners);
+  }
+
+  // Bomb fragments: additional smaller impacts around the main explosion
+  if (spec.fragmentCount > 0 && !missed) {
+    const offsets = [[-2, 1], [2, 1], [0, -2]];
+    for (let f = 0; f < Math.min(spec.fragmentCount, offsets.length); f++) {
+      const fc = impactCol + offsets[f][0];
+      const fr = impactRow + offsets[f][1];
+      if (fc >= 0 && fc < GRID_COLS && fr >= 0 && fr < GRID_ROWS) {
+        // Fragment does 1 damage in radius 1
+        const { destroyedCells, killedPigs, killedPigOwners } = applyDamage(grid, fc, fr, { ...spec, radius: 1, damage: 1 });
+        allDestroyed.push(...destroyedCells);
+        totalKilledPigs += killedPigs;
+        for (const [owner, count] of Object.entries(killedPigOwners)) {
+          allKilledPigOwners[owner] = (allKilledPigOwners[owner] ?? 0) + count;
+        }
+      }
+    }
+  }
+
   const fallenBlocks = applyGravity(grid);
 
   return {
     impactCol, impactRow,
-    weapon: shot.weapon, destroyedCells, killedPigs, killedPigOwners,
-    fallenBlocks, trajectory, missed: false,
+    weapon: shot.weapon, destroyedCells: allDestroyed, killedPigs: totalKilledPigs,
+    killedPigOwners: allKilledPigOwners,
+    fallenBlocks, trajectory, missed: missed && !spec.piercing,
   };
 }

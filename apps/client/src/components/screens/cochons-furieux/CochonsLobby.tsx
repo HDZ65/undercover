@@ -145,7 +145,20 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
         const x = col * cs
         const y = (GRID_ROWS - 1 - row) * cs
         const style = BLOCK_STYLE[cell.type]
-        const isDestroyed = impactResult?.destroyedCells.some(d => d.col === col && d.row === row)
+
+        // Only destroy a cell visually when the projectile has reached or passed it
+        const isMarkedDestroyed = impactResult?.destroyedCells.some(d => d.col === col && d.row === row)
+        let isDestroyed = false
+        if (isMarkedDestroyed && projectilePos) {
+          // Projectile is flying — only destroy if projectile is near this cell
+          const projCol = Math.floor(projectilePos.x)
+          const projRow = Math.floor(projectilePos.y)
+          const dist = Math.abs(projCol - col) + Math.abs(projRow - row)
+          isDestroyed = dist <= (impactResult?.weapon === 'bomb' ? 5 : 3)
+        } else if (isMarkedDestroyed && !projectilePos) {
+          // Projectile has landed — all destroyed cells should be gone
+          isDestroyed = true
+        }
 
         if (cell.type === 'pig') {
           return (
@@ -498,17 +511,25 @@ function BuildPhase({ pub, priv, game }: { pub: CochonsPublicState; priv: Cochon
         ))}
       </div>
 
-      <div className="flex gap-2 justify-center">
-        {([
-          { key: 'pig' as const, label: '🐷 Cochon', color: 'bg-green-500' },
-          { key: 'wood' as CellType, label: '🪵 Bois', color: 'bg-amber-600' },
-          { key: 'stone' as CellType, label: '🪨 Pierre', color: 'bg-slate-400' },
-          { key: 'steel' as CellType, label: '🔩 Acier', color: 'bg-blue-400' },
-          { key: 'empty' as CellType, label: '❌ Suppr.', color: 'bg-red-400' },
-        ]).map(t => (
-          <button key={t.key} onClick={() => setTool(t.key)} disabled={isReady}
-            className={`px-2 py-1 rounded-lg text-xs font-bold text-white transition-all ${tool === t.key ? `${t.color} ring-2 ring-white/50 scale-105` : 'bg-slate-400 dark:bg-slate-600'}`}>{t.label}</button>
-        ))}
+      <div className="flex gap-2 justify-center flex-wrap">
+        {(() => {
+          const woodCount = grid.filter(c => c.type === 'wood' && c.ownerId === priv.playerId).length
+          const stoneCount = grid.filter(c => c.type === 'stone' && c.ownerId === priv.playerId).length
+          const steelCount = grid.filter(c => c.type === 'steel' && c.ownerId === priv.playerId).length
+          const tools = [
+            { key: 'pig' as const, label: '🐷 Cochon', color: 'bg-green-500', count: `${pigCount}/5` },
+            { key: 'wood' as CellType, label: '🪵 Bois', color: 'bg-amber-600', count: `${woodCount}/20` },
+            { key: 'stone' as CellType, label: '🪨 Pierre', color: 'bg-slate-400', count: `${stoneCount}/12` },
+            { key: 'steel' as CellType, label: '🔩 Acier', color: 'bg-blue-400', count: `${steelCount}/5` },
+            { key: 'empty' as CellType, label: '❌ Suppr.', color: 'bg-red-400', count: '' },
+          ]
+          return tools.map(t => (
+            <button key={t.key} onClick={() => setTool(t.key)} disabled={isReady}
+              className={`px-2 py-1 rounded-lg text-xs font-bold text-white transition-all ${tool === t.key ? `${t.color} ring-2 ring-white/50 scale-105` : 'bg-slate-400 dark:bg-slate-600'}`}>
+              {t.label}{t.count && <span className="ml-1 opacity-70">({t.count})</span>}
+            </button>
+          ))
+        })()}
       </div>
 
       <GridRenderer grid={grid} mySide={priv.side} editMode={isReady ? undefined : { tool }} onCellClick={handleCellClick} />

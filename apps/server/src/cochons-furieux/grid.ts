@@ -1,21 +1,49 @@
 import type { Grid, Cell, CellType, CastleTemplate, PlayerSide } from '@undercover/shared';
-import { GRID_COLS, GRID_ROWS, GRID_SIZE, CELL_HP, HALF_COLS, cellIndex, cellAt, MAX_PIGS, sideRange } from '@undercover/shared';
+import { GRID_COLS, GRID_ROWS, GRID_SIZE, CELL_HP, HALF_COLS, cellIndex, MAX_PIGS, sideRange, MAX_WOOD, MAX_STONE, MAX_STEEL } from '@undercover/shared';
 
 export function createEmptyGrid(): Grid {
   return Array.from({ length: GRID_SIZE }, (): Cell => ({ type: 'empty', hp: 0 }));
 }
 
-/** Apply a template to a player's side. Template coords are 0-19, offset for right side. */
+/**
+ * Apply a template to a player's side.
+ * Template coords are 0-19. Left player uses as-is, right player gets mirrored
+ * so structures are near the CENTER of the map (away from their catapult).
+ */
 export function applyTemplate(grid: Grid, template: CastleTemplate, side: PlayerSide, ownerId: string): Grid {
   const g = grid.map(c => ({ ...c }));
-  const offset = side === 'right' ? HALF_COLS : 0;
   for (const b of template.blocks) {
-    const col = b.col + offset;
+    let col: number;
+    if (side === 'left') {
+      col = b.col; // left player: structures at cols 10-18, catapult at col ~1
+    } else {
+      // Mirror: col 18 in template → col 21 in grid (near center)
+      // col 10 in template → col 29 in grid (farther from center)
+      col = HALF_COLS + (HALF_COLS - 1 - b.col);
+    }
     if (col >= 0 && col < GRID_COLS && b.row >= 0 && b.row < GRID_ROWS) {
       g[cellIndex(col, b.row)] = { type: b.type, hp: CELL_HP[b.type], ownerId };
     }
   }
   return g;
+}
+
+/** Count blocks of each type owned by a player */
+export function countBlocks(grid: Grid, ownerId: string): Record<string, number> {
+  const counts: Record<string, number> = { wood: 0, stone: 0, steel: 0 };
+  for (const c of grid) {
+    if (c.ownerId === ownerId && c.type !== 'pig' && c.type !== 'empty') {
+      counts[c.type] = (counts[c.type] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+/** Check if player can place more of this block type */
+export function canPlaceBlock(grid: Grid, type: CellType, ownerId: string): boolean {
+  const counts = countBlocks(grid, ownerId);
+  const limits: Record<string, number> = { wood: MAX_WOOD, stone: MAX_STONE, steel: MAX_STEEL };
+  return (counts[type] ?? 0) < (limits[type] ?? 0);
 }
 
 /** Check if a col is within the player's side */
@@ -28,6 +56,7 @@ export function placeBlock(grid: Grid, col: number, row: number, type: CellType,
   if (!isInSide(col, side)) return grid;
   if (col < 0 || col >= GRID_COLS || row < 0 || row >= GRID_ROWS) return grid;
   if (type === 'empty' || type === 'pig') return grid;
+  if (!canPlaceBlock(grid, type, ownerId)) return grid;
   const idx = cellIndex(col, row);
   if (grid[idx].type !== 'empty') return grid;
   const g = grid.map(c => ({ ...c }));
