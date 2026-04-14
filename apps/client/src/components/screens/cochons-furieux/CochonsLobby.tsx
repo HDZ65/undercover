@@ -649,6 +649,23 @@ export function CochonsLobby({ onBack }: { onBack: () => void }) {
   const game = useCochonsSocket()
   const { publicState: pub, privateState: priv } = game
 
+  // Delay results screen to let the last projectile animation play out
+  const [showResults, setShowResults] = useState(false)
+  const prevPhase = useRef(pub?.phase)
+
+  useEffect(() => {
+    if (pub?.phase === 'results' && prevPhase.current !== 'results') {
+      // Phase just changed to results — wait for the animation to finish
+      setShowResults(false)
+      const timer = setTimeout(() => setShowResults(true), 5000)
+      return () => clearTimeout(timer)
+    }
+    if (pub?.phase !== 'results') {
+      setShowResults(false)
+    }
+    prevPhase.current = pub?.phase
+  }, [pub?.phase])
+
   if (!pub || !priv) {
     return (
       <>
@@ -659,15 +676,17 @@ export function CochonsLobby({ onBack }: { onBack: () => void }) {
     )
   }
 
-  const isPlayPhase = pub.phase === 'buildPhase' || pub.phase === 'battle' || pub.phase === 'resolving'
+  // Keep showing battle view while waiting for animation to finish
+  const effectivePhase = (pub.phase === 'results' && !showResults) ? 'battle' : pub.phase
+  const isPlayPhase = effectivePhase === 'buildPhase' || effectivePhase === 'battle' || effectivePhase === 'resolving'
 
   return (
     <div className={isPlayPhase ? 'fixed inset-0 z-10 flex flex-col overflow-auto bg-gradient-to-b from-emerald-50 to-sky-100 dark:from-slate-900 dark:to-emerald-950' : 'w-full'}>
       <AnimatePresence mode="wait">
-        {pub.phase === 'lobby' && <LobbyPhase key="lobby" pub={pub} priv={priv} game={game} />}
-        {pub.phase === 'buildPhase' && <BuildPhase key="build" pub={pub} priv={priv} game={game} />}
-        {(pub.phase === 'battle' || pub.phase === 'resolving') && <BattlePhase key="battle" pub={pub} priv={priv} game={game} />}
-        {pub.phase === 'results' && <ResultsPhase key="results" pub={pub} priv={priv} game={game} />}
+        {effectivePhase === 'lobby' && <LobbyPhase key="lobby" pub={pub} priv={priv} game={game} />}
+        {effectivePhase === 'buildPhase' && <BuildPhase key="build" pub={pub} priv={priv} game={game} />}
+        {(effectivePhase === 'battle' || effectivePhase === 'resolving') && <BattlePhase key="battle" pub={pub} priv={priv} game={game} />}
+        {effectivePhase === 'results' && <ResultsPhase key="results" pub={pub} priv={priv} game={game} />}
       </AnimatePresence>
     </div>
   )
