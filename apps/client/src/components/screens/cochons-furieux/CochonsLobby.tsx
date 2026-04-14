@@ -10,7 +10,7 @@ import type {
   PlayerSide,
   TrajectoryPoint,
 } from '@undercover/shared'
-import { GRID_COLS, GRID_ROWS, cellIndex, WEAPON_SPECS, CASTLE_TEMPLATES, TOTAL_TURNS, sideRange } from '@undercover/shared'
+import { GRID_COLS, GRID_ROWS, cellIndex, WEAPON_SPECS, TOTAL_TURNS, sideRange } from '@undercover/shared'
 import { useCochonsSocket } from './useCochonsSocket'
 
 // ─── Block styles (Angry Birds look) ─────────────────────────────
@@ -502,13 +502,6 @@ function BuildPhase({ pub, priv, game }: { pub: CochonsPublicState; priv: Cochon
       <div className="text-center">
         <span className={`text-3xl font-black ${game.buildTimeRemaining <= 10 ? 'text-red-500' : game.buildTimeRemaining <= 30 ? 'text-amber-500' : 'text-emerald-500'}`}>{game.buildTimeRemaining}s</span>
         <p className="text-sm text-slate-500">Construisez sur votre côté ({priv.side === 'left' ? 'gauche' : 'droite'})</p>
-      </div>
-
-      <div className="flex gap-2 justify-center flex-wrap">
-        {CASTLE_TEMPLATES.map(t => (
-          <button key={t.id} onClick={() => !isReady && game.selectTemplate(t.id)} disabled={isReady}
-            className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50">{t.labelFr}</button>
-        ))}
       </div>
 
       <div className="flex gap-2 justify-center flex-wrap">
