@@ -48,15 +48,16 @@ function previewTrajectory(angle: number, power: number, side: PlayerSide): Traj
   return pts
 }
 
-function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, trajectory, shootSide, onFire }: {
+function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, trajectory, shootSide, onFire, onBeforeFire }: {
   grid: Grid
   mySide?: PlayerSide
   editMode?: { tool: 'pig' | CellType }
   onCellClick?: (col: number, row: number) => void
   impactResult?: ShotResult | null
   trajectory?: TrajectoryPoint[] | null
-  shootSide?: PlayerSide       // which side the current player shoots from
+  shootSide?: PlayerSide
   onFire?: (angle: number, power: number) => void
+  onBeforeFire?: () => void     // called right before firing to freeze the grid
 }) {
   // Drag state for slingshot
   const containerRef = useRef<HTMLDivElement>(null)
@@ -67,7 +68,10 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
   // Flying projectile animation
   const [projectilePos, setProjectilePos] = useState<{ x: number; y: number } | null>(null)
   const [showImpact, setShowImpact] = useState(false)
+  const [isFlying, setIsFlying] = useState(false)
   const prevTrajectoryLen = useRef(0)
+  // Freeze the grid while the projectile is flying — show the pre-shot grid
+  const frozenGrid = useRef<Grid | null>(null)
 
   useEffect(() => {
     // Detect new trajectory (new shot fired)
@@ -75,7 +79,8 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
     if (tLen > 1 && tLen !== prevTrajectoryLen.current) {
       prevTrajectoryLen.current = tLen
       setShowImpact(false)
-      // Animate projectile along trajectory points over ~4 seconds
+      setIsFlying(true)
+
       const pts = trajectory!
       const totalMs = 3500
       const stepMs = totalMs / pts.length
@@ -87,8 +92,9 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
         } else {
           clearInterval(interval)
           setProjectilePos(null)
+          setIsFlying(false)
+          frozenGrid.current = null // unfreeze — show the real (post-destruction) grid
           setShowImpact(true)
-          // Hide impact after 1.5s
           setTimeout(() => setShowImpact(false), 1500)
         }
       }, stepMs)
@@ -138,7 +144,8 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
       )}
 
       {/* ── Blocks & Pigs ── */}
-      {grid.map((cell, idx) => {
+      {/* Use frozen grid while projectile is flying so blocks don't vanish early */}
+      {(frozenGrid.current ?? grid).map((cell, idx) => {
         if (cell.type === 'empty') return null
         const col = idx % GRID_COLS
         const row = Math.floor(idx / GRID_COLS)
@@ -146,19 +153,18 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
         const y = (GRID_ROWS - 1 - row) * cs
         const style = BLOCK_STYLE[cell.type]
 
-        // Only destroy a cell visually when the projectile has reached or passed it
-        const isMarkedDestroyed = impactResult?.destroyedCells.some(d => d.col === col && d.row === row)
+        // Cells only visually destroyed when the projectile reaches them
         let isDestroyed = false
-        if (isMarkedDestroyed && projectilePos) {
-          // Projectile is flying — only destroy if projectile is near this cell
-          const projCol = Math.floor(projectilePos.x)
-          const projRow = Math.floor(projectilePos.y)
-          const dist = Math.abs(projCol - col) + Math.abs(projRow - row)
-          isDestroyed = dist <= (impactResult?.weapon === 'bomb' ? 5 : 3)
-        } else if (isMarkedDestroyed && !projectilePos) {
-          // Projectile has landed — all destroyed cells should be gone
-          isDestroyed = true
+        if (isFlying && projectilePos && impactResult) {
+          const isMarked = impactResult.destroyedCells.some(d => d.col === col && d.row === row)
+          if (isMarked) {
+            const projCol = Math.floor(projectilePos.x)
+            const projRow = Math.floor(projectilePos.y)
+            const dist = Math.abs(projCol - col) + Math.abs(projRow - row)
+            isDestroyed = dist <= (impactResult.weapon === 'bomb' ? 5 : 3)
+          }
         }
+        // After landing, frozenGrid is null → we render the real grid which already has empty cells
 
         if (cell.type === 'pig') {
           return (
@@ -339,7 +345,12 @@ function GridRenderer({ grid, mySide, editMode, onCellClick, impactResult, traje
                   const dist = Math.sqrt(dragDelta.dx ** 2 + dragDelta.dy ** 2)
                   const power = Math.min(1, dist / 150)
                   const angle = Math.atan2(-dragDelta.dy, side === 'left' ? -dragDelta.dx : dragDelta.dx)
-                  if (power > 0.05) onFire(angle, power)
+                  if (power > 0.05) {
+                    // Freeze the grid BEFORE the server processes the shot
+                    frozenGrid.current = grid.map(c => ({ ...c }))
+                    onBeforeFire?.()
+                    onFire(angle, power)
+                  }
                 }
                 setDragging(false)
                 setDragDelta(null)
